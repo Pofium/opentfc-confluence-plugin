@@ -1,5 +1,10 @@
 # OpenTFC (Open Table Filter, Charts & Spreadsheets for Confluence DC)
 
+[![CI](https://github.com/Pofium/opentfc-confluence-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Pofium/opentfc-confluence-plugin/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Pofium/opentfc-confluence-plugin?include_prereleases&label=release)](https://github.com/Pofium/opentfc-confluence-plugin/releases/latest)
+[![Coverage](https://img.shields.io/badge/coverage-94%25%20lines%20%C2%B7%2078%25%20branches-brightgreen)](https://github.com/Pofium/opentfc-confluence-plugin/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 **OpenTFC** — полнофункциональный аналог плагина *Table Filter, Charts & Spreadsheets for Confluence* (Stiltsoft) для Atlassian Confluence Data Center / Server (версии 8.5 LTS – 9.x), созданный на базе открытых и лицензионно-чистых компонентов (Apache-2.0 / MIT).
 
 ---
@@ -75,6 +80,8 @@ atlas-mvn package
 mvn package
 ```
 Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.0-SNAPSHOT.jar`.
+
+Готовый артефакт также опубликован в релизах: [v1.0.0-SNAPSHOT](https://github.com/Pofium/opentfc-confluence-plugin/releases/tag/v1.0.0-SNAPSHOT) (SHA-256 указан в описании релиза).
 
 ### 4. Запуск юнит-тестов
 ```bash
