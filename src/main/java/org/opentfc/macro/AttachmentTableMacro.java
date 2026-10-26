@@ -57,7 +57,7 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
                 String fileName = att.getFileName();
                 String ext = getFileExtension(fileName).toLowerCase();
 
-                if (!includeExtensions.isEmpty() && !includeExtensions.contains(ext)) {
+                if (!includeExtensions.isEmpty() && (ext.isEmpty() || !includeExtensions.contains(ext))) {
                     continue;
                 }
                 if (!excludeExtensions.isEmpty() && excludeExtensions.contains(ext)) {
@@ -97,6 +97,7 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         char pre = "KMGTPE".charAt(exp - 1);
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+        // Locale-independent: file sizes must not switch to a decimal comma under ru_RU etc.
+        return String.format(java.util.Locale.ROOT, "%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
 }

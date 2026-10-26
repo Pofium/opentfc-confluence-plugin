@@ -246,6 +246,34 @@
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
+            <!-- Coverage for the TZ acceptance criterion (backend unit coverage >= 70%) -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <configuration>
+                    <!-- The SDK unpacks bundled libraries into target/classes; analyse only our own
+                         package (third-party shaded classes also collide across META-INF/versions). -->
+                    <includes>
+                        <include>org/opentfc/**</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
