@@ -19,6 +19,13 @@ public class SqlTransformerEngine {
             Pattern.CASE_INSENSITIVE
     );
 
+    // Strips SQL comments and quoted literals/identifiers before the keyword scan so that
+    // harmless data like SELECT 'DROP' AS msg FROM T1 is not rejected (false positive).
+    private static final Pattern SQL_LINE_COMMENT = Pattern.compile("--[^\\n]*");
+    private static final Pattern SQL_BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+    private static final Pattern SQL_STRING_LITERAL = Pattern.compile("'(?:[^']|'')*'");
+    private static final Pattern SQL_QUOTED_IDENTIFIER = Pattern.compile("\"(?:[^\"]|\"\")*\"");
+
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
     private static final int MAX_RESULT_ROWS = 50000;
 
@@ -37,7 +44,7 @@ public class SqlTransformerEngine {
         }
 
         String trimmedSql = sql.trim();
-        if (DISALLOWED_SQL.matcher(trimmedSql).find()) {
+        if (DISALLOWED_SQL.matcher(stripSqlNoise(trimmedSql)).find()) {
             return SqlExecutionResult.error("Security violation: Only SELECT queries are permitted", 0);
         }
 
@@ -96,6 +103,21 @@ public class SqlTransformerEngine {
             log.error("Unexpected error during SQL transformation: {}", e.getMessage(), e);
             return SqlExecutionResult.error("Execution failed: " + e.getMessage(), duration);
         }
+    }
+
+    /**
+     * Removes SQL comments, string literals and quoted identifiers so the keyword
+     * scan only sees real statements, not data or identifiers.
+     */
+    static String stripSqlNoise(String sql) {
+        if (sql == null) {
+            return "";
+        }
+        String stripped = SQL_LINE_COMMENT.matcher(sql).replaceAll(" ");
+        stripped = SQL_BLOCK_COMMENT.matcher(stripped).replaceAll(" ");
+        stripped = SQL_STRING_LITERAL.matcher(stripped).replaceAll("''");
+        stripped = SQL_QUOTED_IDENTIFIER.matcher(stripped).replaceAll("\"\"");
+        return stripped;
     }
 
     private void createAndPopulateTable(Connection conn, String tableName, TableModel table) throws SQLException {

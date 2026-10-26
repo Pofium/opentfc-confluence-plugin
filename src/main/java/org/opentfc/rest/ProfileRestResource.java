@@ -92,7 +92,7 @@ public class ProfileRestResource {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
 
-        FilterProfile profile = ao.get(FilterProfile.class, profileId);
+        FilterProfile profile = ao.get(FilterProfile.class, (int) profileId);
         if (profile != null && profile.getUserKey().equals(user.getKey().getStringValue())) {
             ao.delete(profile);
             return Response.noContent().build();

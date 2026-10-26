@@ -44,10 +44,10 @@ public class DataSourceResolver {
         try (Reader reader = new InputStreamReader(in, charset != null ? charset : StandardCharsets.UTF_8);
              CSVParser parser = new CSVParser(reader, format)) {
 
-            Map<String, Integer> headerMap = parser.getHeaderMap();
-            if (headerMap != null) {
-                for (Map.Entry<String, Integer> entry : headerMap.entrySet()) {
-                    model.addColumn(new ColumnModel(entry.getValue(), entry.getKey(), ColumnType.TEXT));
+            List<String> headers = parser.getHeaderNames();
+            if (headers != null) {
+                for (int i = 0; i < headers.size(); i++) {
+                    model.addColumn(new ColumnModel(i, headers.get(i), ColumnType.TEXT));
                 }
             }
 
@@ -89,6 +89,28 @@ public class DataSourceResolver {
                     }
                     model.addRow(row);
                 }
+            } else if (first.isArray()) {
+                // Array of arrays: treat each inner array as a row, columns are positional
+                int colCount = 0;
+                for (JsonNode node : root) {
+                    if (node.isArray()) {
+                        colCount = Math.max(colCount, node.size());
+                    }
+                }
+                for (int i = 0; i < colCount; i++) {
+                    model.addColumn(new ColumnModel(i, "Column " + (i + 1), ColumnType.TEXT));
+                }
+                for (JsonNode node : root) {
+                    if (!node.isArray()) {
+                        continue;
+                    }
+                    RowModel row = new RowModel();
+                    for (int i = 0; i < colCount; i++) {
+                        String val = i < node.size() && !node.get(i).isNull() ? node.get(i).asText() : "";
+                        row.addCell(new CellModel(val, val, ColumnType.TEXT));
+                    }
+                    model.addRow(row);
+                }
             }
         }
         return model;
@@ -98,7 +120,12 @@ public class DataSourceResolver {
      * Safely fetch stream from external URL with strict SSRF protection.
      */
     public InputStream fetchSafeUrl(String urlString) throws IOException {
-        URL url = new URI(urlString).toURL();
+        URL url;
+        try {
+            url = new URI(urlString).toURL();
+        } catch (URISyntaxException e) {
+            throw new IOException("Invalid URL: " + urlString, e);
+        }
         String protocol = url.getProtocol().toLowerCase();
         if (!"http".equals(protocol) && !"https".equals(protocol)) {
             throw new SecurityException("Forbidden URL protocol: " + protocol);

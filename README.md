@@ -63,7 +63,12 @@ npm install
 npm run build
 ```
 
-### 2. Сборка P2-плагина
+### 2. Проверка типов TypeScript
+```bash
+npm run check
+```
+
+### 3. Сборка P2-плагина
 ```bash
 atlas-mvn package
 # или стандартным Maven
@@ -71,7 +76,13 @@ mvn package
 ```
 Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.0-SNAPSHOT.jar`.
 
-### 3. Установка в Confluence Data Center
+### 4. Запуск юнит-тестов
+```bash
+mvn test
+```
+Тесты покрывают сервисы (извлечение таблиц, CSV/JSON-парсеры, SSRF-защита, SQL-движок DuckDB, экспорт), рендер макросов, админ-действие и консистентность i18n. CI (GitHub Actions) прогоняет `npm run check`, сборку фронтенда и `mvn verify` на JDK 17.
+
+### 5. Установка в Confluence Data Center
 1. Войдите в Confluence с правами администратора.
 2. Перейдите: **Настройки Confluence** (шестеренка) → **Управление приложениями** (Manage apps).
 3. Нажмите **Загрузить приложение** (Upload app) и выберите собранный JAR файл.

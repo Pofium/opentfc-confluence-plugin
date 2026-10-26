@@ -44,11 +44,13 @@ public class TableExtractorImpl implements TableExtractor {
 
             // 1. Extract header columns
             Elements headerCells = table.select("thead tr th, thead tr td");
+            boolean headerFromFirstRow = false;
             if (headerCells.isEmpty()) {
                 // Check first row of tbody
                 Element firstRow = table.selectFirst("tbody tr, tr");
                 if (firstRow != null) {
                     headerCells = firstRow.select("th, td");
+                    headerFromFirstRow = true;
                 }
             }
 
@@ -65,10 +67,11 @@ public class TableExtractorImpl implements TableExtractor {
             Elements rows = table.select("tbody tr");
             if (rows.isEmpty()) {
                 rows = table.select("tr");
-                // If header was the first row, skip it
-                if (!rows.isEmpty() && table.select("thead").isEmpty()) {
-                    rows.remove(0);
-                }
+            }
+            // When the header was derived from the first row (no <thead>),
+            // exclude that same row from the data rows.
+            if (headerFromFirstRow && !rows.isEmpty()) {
+                rows.remove(0);
             }
 
             for (Element tr : rows) {
