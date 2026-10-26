@@ -40,6 +40,25 @@
         <context>preview</context>
     </web-resource>
 
+    <!-- Administration Web Item -->
+    <web-item key="opentfc-admin-link" name="OpenTFC Admin Link" section="system.admin/configuration" weight="150">
+        <label key="opentfc.admin.title">Настройки OpenTFC</label>
+        <link linkId="opentfc-admin-link">/admin/opentfc/view-opentfc-admin.action</link>
+    </web-item>
+
+    <!-- Administration Actions (XWork) -->
+    <xwork key="opentfc-admin-actions" name="OpenTFC Admin Actions">
+        <package name="opentfc-admin" extends="default" namespace="/admin/opentfc">
+            <default-interceptor-ref name="defaultStack" />
+            <action name="view-opentfc-admin" class="org.opentfc.admin.OpenTfcAdminAction" method="execute">
+                <result name="success" type="velocity">/templates/admin/opentfc-admin.vm</result>
+            </action>
+            <action name="do-save-opentfc-admin" class="org.opentfc.admin.OpenTfcAdminAction" method="save">
+                <result name="success" type="velocity">/templates/admin/opentfc-admin.vm</result>
+            </action>
+        </package>
+    </xwork>
+
     <!-- 1. Table Filter Macro -->
     <xhtml-macro key="opentfc-table-filter"
                  name="Open Table Filter"

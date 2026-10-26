@@ -1,0 +1,51 @@
+<html>
+<head>
+    <title>Настройки OpenTFC</title>
+    <meta name="decorator" content="atl.admin" />
+</head>
+<body>
+    <header class="aui-page-header">
+        <div class="aui-page-header-inner">
+            <div class="aui-page-header-main">
+                <h2>Конфигурация плагина OpenTFC</h2>
+                <p>Управление глобальными лимитами безопасности, SQL-трансформером и белым списком внешних источников.</p>
+            </div>
+        </div>
+    </header>
+
+    #if ($saved)
+        <div class="aui-message aui-message-success closeable">
+            <p class="title"><strong>Успешно сохранено!</strong></p>
+            <p>Новые параметры конфигурации OpenTFC вступили в силу для всех пользователей.</p>
+        </div>
+    #end
+
+    <form class="aui" method="post" action="do-save-opentfc-admin.action">
+        #form_xsrf_token()
+
+        <div class="field-group">
+            <label for="sqlTimeoutSeconds">Тайм-аут SQL запроса (сек.):</label>
+            <input type="number" id="sqlTimeoutSeconds" name="sqlTimeoutSeconds" class="text short-field" value="$!sqlTimeoutSeconds" min="1" max="60" />
+            <div class="description">Максимальное время выполнения запросов в DuckDB (по умолчанию 10 с).</div>
+        </div>
+
+        <div class="field-group">
+            <label for="maxResultRows">Макс. число строк результата:</label>
+            <input type="number" id="maxResultRows" name="maxResultRows" class="text short-field" value="$!maxResultRows" min="100" max="500000" />
+            <div class="description">Ограничение на размер выборки SQL-трансформаций для защиты памяти JVM (по умолчанию 50 000).</div>
+        </div>
+
+        <div class="field-group">
+            <label for="allowedUrlWhitelist">Белый список доменов (Whitelist для URL):</label>
+            <textarea id="allowedUrlWhitelist" name="allowedUrlWhitelist" class="textarea medium-long-field" rows="4">$!allowedUrlWhitelist</textarea>
+            <div class="description">Разрешенные домены для CSV/JSON источников (по одному на строку). Запросы к адресам локальной сети (localhost, 127.0.0.1, RFC1918) блокируются автоматически.</div>
+        </div>
+
+        <div class="buttons-container">
+            <div class="buttons">
+                <input type="submit" class="aui-button aui-button-primary" value="Сохранить настройки" />
+            </div>
+        </div>
+    </form>
+</body>
+</html>
