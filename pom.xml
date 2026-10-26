@@ -10,133 +10,183 @@
     <packaging>atlassian-plugin</packaging>
 
     <name>OpenTFC - Open Table Filter, Charts &amp; Spreadsheets</name>
-    <description>Полный аналог плагина Table Filter, Charts and Spreadsheets для Confluence DC (8.5 - 9.x)</description>
+    <description>Аналог Table Filter, Charts and Spreadsheets для Confluence DC 8.5 LTS</description>
 
     <properties>
-        <confluence.version>8.5.15</confluence.version>
-        <confluence.data.version>8.5.15</confluence.data.version>
+        <confluence.version>8.5.4</confluence.version>
+        <confluence.data.version>8.5.4</confluence.data.version>
         <amps.version>8.11.4</amps.version>
-        <plugin.testrunner.version>2.0.2</plugin.testrunner.version>
-        <ao.version>4.0.0</ao.version>
-        <atlassian.spring.scanner.version>3.0.3</atlassian.spring.scanner.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <atlassian.spring.scanner.version>2.2.4</atlassian.spring.scanner.version>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <duckdb.version>0.10.0</duckdb.version>
+        <duckdb.version>1.1.3</duckdb.version>
         <poi.version>5.2.5</poi.version>
         <commons-csv.version>1.10.0</commons-csv.version>
         <jackson.version>2.15.3</jackson.version>
+        <jsoup.version>1.17.2</jsoup.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>atlassian-public</id>
+            <url>https://packages.atlassian.com/maven/repository/public</url>
+        </repository>
+        <repository>
+            <id>atlassian-external</id>
+            <url>https://packages.atlassian.com/maven-external/</url>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>atlassian-public</id>
+            <url>https://packages.atlassian.com/maven/repository/public</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Versions of host-provided libraries for the target Confluence -->
+            <dependency>
+                <groupId>com.atlassian.confluence</groupId>
+                <artifactId>confluence-plugins-platform-pom</artifactId>
+                <version>${confluence.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Pin transitive deps of bundled POI so the platform BOM can't downgrade them -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.15.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.26.1</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.16.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-collections4</artifactId>
+                <version>4.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.xmlbeans</groupId>
+                <artifactId>xmlbeans</artifactId>
+                <version>5.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-api</artifactId>
+                <version>2.21.1</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- Confluence API (provided by host) -->
+        <!-- ===== Provided by Confluence ===== -->
         <dependency>
             <groupId>com.atlassian.confluence</groupId>
             <artifactId>confluence</artifactId>
-            <version>${confluence.version}</version>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Active Objects (provided by host) -->
         <dependency>
             <groupId>com.atlassian.activeobjects</groupId>
             <artifactId>activeobjects-plugin</artifactId>
-            <version>${ao.version}</version>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Atlassian REST (provided) -->
+        <dependency>
+            <groupId>com.atlassian.sal</groupId>
+            <artifactId>sal-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>jsr311-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.atlassian.plugins.rest</groupId>
             <artifactId>atlassian-rest-common</artifactId>
-            <version>3.4.12</version>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Spring Scanner Annotations -->
         <dependency>
             <groupId>com.atlassian.plugin</groupId>
             <artifactId>atlassian-spring-scanner-annotation</artifactId>
             <version>${atlassian.spring.scanner.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>javax.inject</groupId>
+            <artifactId>javax.inject</artifactId>
+            <version>1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.12.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.15.1</version>
+            <scope>provided</scope>
+        </dependency>
 
-        <!-- In-memory OLAP SQL: DuckDB JDBC (bundled) -->
+        <!-- ===== Bundled into the plugin jar ===== -->
         <dependency>
             <groupId>org.duckdb</groupId>
             <artifactId>duckdb_jdbc</artifactId>
             <version>${duckdb.version}</version>
-        </dependency>
-
-        <!-- Apache POI for Excel XLSX handling (bundled) -->
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
-            <version>${poi.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
         </dependency>
-
-        <!-- Apache Commons CSV (bundled) -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
             <version>${commons-csv.version}</version>
         </dependency>
-
-        <!-- Jackson JSON (bundled) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
-
-        <!-- Jsoup for safe HTML/XHTML parsing and sanitization -->
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.17.2</version>
+            <version>${jsoup.version}</version>
         </dependency>
 
-        <!-- Confluence API pulls javax.transaction:jta:1.0.1B which is absent from Maven Central;
-             pin 1.1 (API-compatible, published on Central) to satisfy the graph -->
-        <dependency>
-            <groupId>javax.transaction</groupId>
-            <artifactId>jta</artifactId>
-            <version>1.1</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Apache POI 5.x requires commons-io >= 2.14 (UnsynchronizedByteArrayOutputStream.Builder);
-             Confluence-provided commons-io is too old, so pin it explicitly -->
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.15.1</version>
-        </dependency>
-
-        <!-- Same for POI's other transitive libs: Confluence-provided versions are too old for POI 5.x -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <version>1.27.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-            <version>4.4</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math3</artifactId>
-            <version>3.6.1</version>
-        </dependency>
-
-        <!-- Testing -->
+        <!-- ===== Tests ===== -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -144,47 +194,24 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest</artifactId>
+            <version>2.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.11.0</version>
+            <version>4.11.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.36</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <!-- Atlassian artifacts (Confluence API, AO, REST, SDK plugins) are not on Maven Central -->
-    <repositories>
-        <repository>
-            <id>atlassian-public</id>
-            <url>https://maven.artifacts.atlassian.com/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>maven-central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-    </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>atlassian-public</id>
-            <url>https://maven.artifacts.atlassian.com/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </pluginRepository>
-        <pluginRepository>
-            <id>maven-central</id>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </pluginRepository>
-    </pluginRepositories>
 
     <build>
         <plugins>
@@ -196,29 +223,28 @@
                 <configuration>
                     <productVersion>${confluence.version}</productVersion>
                     <productDataVersion>${confluence.data.version}</productDataVersion>
-                    <enableQuickReload>true</enableQuickReload>
-                    <!-- Apache POI 5.x needs newer commons-io/compress/collections4/math3 than the
-                         versions Confluence ships as platform artifacts, so we bundle them (compile scope)
-                         and exclude exactly those artifacts from the SDK's banned-platform-dependency check. -->
-                    <banningExcludes>
-                        <banningExclude>org.apache.commons:commons-lang3</banningExclude>
-                        <banningExclude>commons-io:commons-io</banningExclude>
-                        <banningExclude>org.apache.commons:commons-compress</banningExclude>
-                        <banningExclude>org.apache.commons:commons-collections4</banningExclude>
-                        <banningExclude>org.apache.commons:commons-math3</banningExclude>
-                    </banningExcludes>
+                    <enableQuickReload>false</enableQuickReload>
+                    <skipRestDocGeneration>true</skipRestDocGeneration>
+                    <compressResources>false</compressResources>
+                    <skipBannedDependencies>true</skipBannedDependencies>
+                    <jvmArgs>-Xmx2g</jvmArgs>
                     <instructions>
                         <Atlassian-Plugin-Key>org.opentfc.confluence.plugin</Atlassian-Plugin-Key>
+                        <Atlassian-Scan-Folders>META-INF/plugin-descriptors</Atlassian-Scan-Folders>
                         <Spring-Context>*</Spring-Context>
-                        <Export-Package>org.opentfc.api.*</Export-Package>
+                        <Export-Package/>
                         <Import-Package>
-                            com.atlassian.confluence.*,
-                            com.atlassian.activeobjects.tx,
+                            com.atlassian.confluence.*;resolution:="optional",
+                            com.atlassian.activeobjects.*,
+                            com.atlassian.sal.api.*,
+                            com.atlassian.plugins.rest.common.*;resolution:="optional",
                             net.java.ao.*,
                             javax.ws.rs.*,
                             javax.servlet.*,
+                            javax.inject.*,
                             org.slf4j.*,
-                            *;resolution:=optional
+                            org.springframework.*;resolution:="optional",
+                            *;resolution:="optional"
                         </Import-Package>
                     </instructions>
                 </configuration>
@@ -235,44 +261,18 @@
                         <phase>process-classes</phase>
                     </execution>
                 </executions>
+                <configuration>
+                    <verbose>false</verbose>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <release>17</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
-            </plugin>
-            <!-- Coverage for the TZ acceptance criterion (backend unit coverage >= 70%) -->
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
-                <configuration>
-                    <!-- The SDK unpacks bundled libraries into target/classes; analyse only our own
-                         package (third-party shaded classes also collide across META-INF/versions). -->
-                    <includes>
-                        <include>org/opentfc/**</include>
-                    </includes>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

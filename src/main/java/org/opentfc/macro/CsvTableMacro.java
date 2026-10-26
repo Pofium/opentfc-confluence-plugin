@@ -2,17 +2,24 @@ package org.opentfc.macro;
 
 import com.atlassian.confluence.content.render.xhtml.ConversionContext;
 import com.atlassian.confluence.macro.MacroExecutionException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.atlassian.confluence.xhtml.api.XhtmlContent;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Macro rendering external or attached CSV/TSV data as a Confluence table.
+ * CSV Table macro: data comes from a page attachment, external URL (whitelisted) or inline body.
  */
 public class CsvTableMacro extends BaseOpenTfcMacro {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public CsvTableMacro() {
+        super(null);
+    }
+
+    public CsvTableMacro(@ComponentImport XhtmlContent xhtmlContent) {
+        super(xhtmlContent);
+    }
 
     @Override
     public BodyType getBodyType() {
@@ -20,34 +27,21 @@ public class CsvTableMacro extends BaseOpenTfcMacro {
     }
 
     @Override
-    public String execute(Map<String, String> parameters, String body, ConversionContext conversionContext)
+    public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-
         String macroId = getOrCreateMacroId(parameters);
-        String sourceType = parameters.getOrDefault("sourceType", "attachment");
-        String attachmentName = parameters.getOrDefault("attachmentName", "");
-        String url = parameters.getOrDefault("url", "");
-        String delimiter = parameters.getOrDefault("delimiter", "auto");
-        String encoding = parameters.getOrDefault("encoding", "UTF-8");
-
-        long pageId = conversionContext.getEntity() != null ? conversionContext.getEntity().getId() : 0;
-
-        Map<String, Object> config = new HashMap<>();
+        Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
-        config.put("pageId", pageId);
-        config.put("sourceType", sourceType);
-        config.put("attachmentName", attachmentName);
-        config.put("url", url);
-        config.put("delimiter", delimiter);
-        config.put("encoding", encoding);
+        config.put("pageId", pageIdOf(ctx));
+        config.put("type", "csv");
+        config.put("sourceType", parameters.getOrDefault("sourceType", "attachment"));
+        config.put("attachmentName", parameters.getOrDefault("attachmentName", ""));
+        config.put("url", parameters.getOrDefault("url", ""));
+        config.put("delimiter", parameters.getOrDefault("delimiter", "auto"));
+        config.put("encoding", parameters.getOrDefault("encoding", "UTF-8"));
+        config.put("inline", body != null ? body : "");
 
-        String configJson = "{}";
-        try {
-            configJson = objectMapper.writeValueAsString(config);
-        } catch (Exception ignored) {}
-
-        return "<div class=\"opentfc-container opentfc-csv\" id=\"" +
-                escape(macroId) + "\" data-opentfc-config=\"" + escape(configJson) + "\">" +
-                "<div class=\"opentfc-csv-grid\"></div></div>";
+        return container("opentfc-datasource opentfc-csv", macroId, config,
+                "<div class=\"opentfc-datasource-grid\">Загрузка данных…</div>");
     }
 }

@@ -2,17 +2,24 @@ package org.opentfc.macro;
 
 import com.atlassian.confluence.content.render.xhtml.ConversionContext;
 import com.atlassian.confluence.macro.MacroExecutionException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.atlassian.confluence.xhtml.api.XhtmlContent;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Macro including a range or sheet from another spreadsheet.
+ * Spreadsheet Include macro: read-only view of a spreadsheet (by page id + spreadsheet macroId).
  */
 public class SpreadsheetIncludeMacro extends BaseOpenTfcMacro {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public SpreadsheetIncludeMacro() {
+        super(null);
+    }
+
+    public SpreadsheetIncludeMacro(@ComponentImport XhtmlContent xhtmlContent) {
+        super(xhtmlContent);
+    }
 
     @Override
     public BodyType getBodyType() {
@@ -20,31 +27,21 @@ public class SpreadsheetIncludeMacro extends BaseOpenTfcMacro {
     }
 
     @Override
-    public String execute(Map<String, String> parameters, String body, ConversionContext conversionContext)
+    public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-
-        if (isExportMode(conversionContext)) {
-            return "<div class=\"opentfc-export-spreadsheet-include-fallback\">[OpenTFC Spreadsheet Include]</div>";
+        String macroId = getOrCreateMacroId(parameters);
+        if (isExportMode(ctx)) {
+            return "<div class=\"opentfc-export-spreadsheet-include opentfc-export-spreadsheet-include-fallback\">[OpenTFC Spreadsheet Include]</div>";
         }
 
-        String macroId = getOrCreateMacroId(parameters);
-        String targetPageId = parameters.getOrDefault("pageId", "");
-        String sheetName = parameters.getOrDefault("sheetName", "");
-        String range = parameters.getOrDefault("range", "A1:Z100");
-
-        Map<String, Object> config = new HashMap<>();
+        Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
-        config.put("targetPageId", targetPageId);
-        config.put("sheetName", sheetName);
-        config.put("range", range);
+        config.put("targetPageId", parameters.getOrDefault("pageId", "").replaceAll("[^0-9]", ""));
+        config.put("sheetMacroId", parameters.getOrDefault("sheetMacroId", "").replaceAll("[^A-Za-z0-9_-]", ""));
+        config.put("sheetName", parameters.get("sheetName"));
+        config.put("range", parameters.getOrDefault("range", "A1:Z100"));
 
-        String configJson = "{}";
-        try {
-            configJson = objectMapper.writeValueAsString(config);
-        } catch (Exception ignored) {}
-
-        return "<div class=\"opentfc-container opentfc-spreadsheet-include\" id=\"" +
-                escape(macroId) + "\" data-opentfc-config=\"" + escape(configJson) + "\">" +
-                "<div class=\"opentfc-sheet-include-view\"></div></div>";
+        return container("opentfc-spreadsheet-include", macroId, config,
+                "<div class=\"opentfc-sheet-include-view\"></div>");
     }
 }

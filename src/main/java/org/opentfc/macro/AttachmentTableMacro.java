@@ -1,26 +1,43 @@
 package org.opentfc.macro;
 
 import com.atlassian.confluence.content.render.xhtml.ConversionContext;
+import com.atlassian.confluence.core.ContentEntityObject;
 import com.atlassian.confluence.macro.MacroExecutionException;
 import com.atlassian.confluence.pages.Attachment;
 import com.atlassian.confluence.pages.AttachmentManager;
-import com.atlassian.confluence.pages.Page;
+import com.atlassian.confluence.xhtml.api.XhtmlContent;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.ApplicationProperties;
+import com.atlassian.sal.api.UrlMode;
 
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Macro listing page attachments as a rich filterable table.
+ * Attachment Table macro: renders the current page's attachments as a table
+ * (can be wrapped by Table Filter for filtering/sorting).
  */
 public class AttachmentTableMacro extends BaseOpenTfcMacro {
 
     private final AttachmentManager attachmentManager;
+    private final ApplicationProperties applicationProperties;
 
-    public AttachmentTableMacro(@ComponentImport AttachmentManager attachmentManager) {
+    public AttachmentTableMacro(AttachmentManager attachmentManager) {
+        this(null, attachmentManager, null);
+    }
+
+    public AttachmentTableMacro(@ComponentImport XhtmlContent xhtmlContent,
+                                @ComponentImport AttachmentManager attachmentManager,
+                                @ComponentImport ApplicationProperties applicationProperties) {
+        super(xhtmlContent);
         this.attachmentManager = attachmentManager;
+        this.applicationProperties = applicationProperties;
     }
 
     @Override
@@ -29,75 +46,80 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
     }
 
     @Override
-    public String execute(Map<String, String> parameters, String body, ConversionContext conversionContext)
+    public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-
         String macroId = getOrCreateMacroId(parameters);
-        String includeExtensions = parameters.getOrDefault("includeExtensions", "").toLowerCase();
-        String excludeExtensions = parameters.getOrDefault("excludeExtensions", "").toLowerCase();
+        Set<String> include = parseExtensions(parameters.get("includeExtensions"));
+        Set<String> exclude = parseExtensions(parameters.get("excludeExtensions"));
+        String contextPath = applicationProperties != null ? applicationProperties.getBaseUrl(UrlMode.RELATIVE) : "";
 
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"opentfc-attachment-table-wrapper\" id=\"").append(escape(macroId)).append("\">");
-        html.append("<table class=\"confluenceTable tablesorter opentfc-data-table\">");
-        html.append("<thead><tr>");
-        html.append("<th class=\"confluenceTh\">File Name</th>");
-        html.append("<th class=\"confluenceTh\">Size</th>");
-        html.append("<th class=\"confluenceTh\">Creator</th>");
-        html.append("<th class=\"confluenceTh\">Last Modified</th>");
-        html.append("<th class=\"confluenceTh\">Comment</th>");
-        html.append("</tr></thead>");
-        html.append("<tbody>");
+        html.append("<div class=\"opentfc-attachment-table\" id=\"").append(escape(macroId)).append("\">")
+            .append("<table class=\"confluenceTable\"><thead><tr>")
+            .append("<th class=\"confluenceTh\">File Name</th>")
+            .append("<th class=\"confluenceTh\">Size</th>")
+            .append("<th class=\"confluenceTh\">Creator</th>")
+            .append("<th class=\"confluenceTh\">Modified</th>")
+            .append("<th class=\"confluenceTh\">Comment</th>")
+            .append("</tr></thead><tbody>");
 
-        if (conversionContext.getEntity() instanceof Page && attachmentManager != null) {
-            Page page = (Page) conversionContext.getEntity();
-            List<Attachment> attachments = attachmentManager.getLatestVersionsOfAttachments(page);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-
+        ContentEntityObject entity = ctx != null ? ctx.getEntity() : null;
+        if (entity != null && attachmentManager != null) {
+            List<Attachment> attachments = attachmentManager.getLatestVersionsOfAttachments(entity);
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT);
             for (Attachment att : attachments) {
                 String fileName = att.getFileName();
-                String ext = getFileExtension(fileName).toLowerCase();
-
-                if (!includeExtensions.isEmpty() && (ext.isEmpty() || !includeExtensions.contains(ext))) {
+                String ext = extensionOf(fileName);
+                if (!include.isEmpty() && !include.contains(ext)) {
                     continue;
                 }
-                if (!excludeExtensions.isEmpty() && excludeExtensions.contains(ext)) {
+                if (exclude.contains(ext)) {
                     continue;
                 }
-
-                html.append("<tr>");
-                html.append("<td class=\"confluenceTd\"><a href=\"")
-                    .append(att.getDownloadPath())
-                    .append("\">")
-                    .append(escape(fileName))
-                    .append("</a></td>");
-                html.append("<td class=\"confluenceTd\">").append(formatFileSize(att.getFileSize())).append("</td>");
-                html.append("<td class=\"confluenceTd\">")
+                Date modDate = att.getLastModificationDate() != null ? att.getLastModificationDate() : new Date();
+                html.append("<tr>")
+                    .append("<td class=\"confluenceTd\"><a href=\"")
+                    .append(escape(contextPath + att.getDownloadPath())).append("\">")
+                    .append(escape(fileName)).append("</a></td>")
+                    .append("<td class=\"confluenceTd\">").append(escape(formatSize(att.getFileSize()))).append("</td>")
+                    .append("<td class=\"confluenceTd\">")
                     .append(att.getCreator() != null ? escape(att.getCreator().getFullName()) : "")
-                    .append("</td>");
-                html.append("<td class=\"confluenceTd\">")
-                    .append(sdf.format(att.getLastModificationDate() != null ? att.getLastModificationDate() : new Date()))
-                    .append("</td>");
-                html.append("<td class=\"confluenceTd\">")
-                    .append(escape(att.getVersionComment()))
-                    .append("</td>");
-                html.append("</tr>");
+                    .append("</td>")
+                    .append("<td class=\"confluenceTd\">")
+                    .append(sdf.format(modDate))
+                    .append("</td>")
+                    .append("<td class=\"confluenceTd\">")
+                    .append(att.getVersionComment() != null ? escape(att.getVersionComment()) : "")
+                    .append("</td>")
+                    .append("</tr>");
             }
         }
-
         html.append("</tbody></table></div>");
         return html.toString();
     }
 
-    private String getFileExtension(String name) {
-        int idx = name.lastIndexOf('.');
-        return idx > 0 ? name.substring(idx + 1) : "";
+    private String formatSize(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0);
+        } else {
+            return String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
+        }
     }
 
-    private String formatFileSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        char pre = "KMGTPE".charAt(exp - 1);
-        // Locale-independent: file sizes must not switch to a decimal comma under ru_RU etc.
-        return String.format(java.util.Locale.ROOT, "%.1f %sB", bytes / Math.pow(1024, exp), pre);
+    private Set<String> parseExtensions(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(raw.toLowerCase(Locale.ROOT).split("[,;\\s]+"))
+                .map(s -> s.startsWith(".") ? s.substring(1) : s)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+    }
+
+    private String extensionOf(String name) {
+        int idx = name.lastIndexOf('.');
+        return idx > 0 ? name.substring(idx + 1).toLowerCase(Locale.ROOT) : "";
     }
 }

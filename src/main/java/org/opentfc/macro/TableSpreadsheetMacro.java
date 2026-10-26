@@ -2,17 +2,24 @@ package org.opentfc.macro;
 
 import com.atlassian.confluence.content.render.xhtml.ConversionContext;
 import com.atlassian.confluence.macro.MacroExecutionException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.atlassian.confluence.xhtml.api.XhtmlContent;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Macro rendering full Excel-compatible spreadsheets directly on Confluence pages.
+ * Table Spreadsheet macro: editable grid persisted as a JSON attachment on the page.
  */
 public class TableSpreadsheetMacro extends BaseOpenTfcMacro {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public TableSpreadsheetMacro() {
+        super(null);
+    }
+
+    public TableSpreadsheetMacro(@ComponentImport XhtmlContent xhtmlContent) {
+        super(xhtmlContent);
+    }
 
     @Override
     public BodyType getBodyType() {
@@ -20,51 +27,24 @@ public class TableSpreadsheetMacro extends BaseOpenTfcMacro {
     }
 
     @Override
-    public String execute(Map<String, String> parameters, String body, ConversionContext conversionContext)
+    public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-
-        if (isExportMode(conversionContext)) {
-            return "<div class=\"opentfc-export-spreadsheet-fallback\">[OpenTFC Spreadsheet: " +
-                    escape(parameters.getOrDefault("attachmentName", "Sheet")) + "]</div>";
-        }
-
         String macroId = getOrCreateMacroId(parameters);
-        String attachmentName = parameters.getOrDefault("attachmentName", "spreadsheet-" + macroId + ".xlsx");
-        boolean readOnly = Boolean.parseBoolean(parameters.getOrDefault("readOnly", "false"));
-        String height = parameters.getOrDefault("height", "550px");
-
-        long pageId = 0;
-        if (conversionContext.getEntity() != null) {
-            pageId = conversionContext.getEntity().getId();
+        if (isExportMode(ctx)) {
+            return "<div class=\"opentfc-export-spreadsheet\">[OpenTFC Spreadsheet " + escape(macroId) + "]</div>";
         }
 
-        Map<String, Object> config = new HashMap<>();
+        String height = parameters.getOrDefault("height", "550px").replaceAll("[^0-9a-z%.]", "");
+        Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
-        config.put("pageId", pageId);
-        config.put("attachmentName", attachmentName);
-        config.put("readOnly", readOnly);
+        config.put("pageId", pageIdOf(ctx));
+        config.put("attachmentName", parameters.getOrDefault("attachmentName", "spreadsheet-" + macroId + ".json"));
+        config.put("readOnly", Boolean.parseBoolean(parameters.getOrDefault("readOnly", "false")));
         config.put("height", height);
 
-        String configJson = "{}";
-        try {
-            configJson = objectMapper.writeValueAsString(config);
-        } catch (Exception ignored) {}
-
-        StringBuilder html = new StringBuilder();
-        html.append("<div class=\"opentfc-container opentfc-spreadsheet\" id=\"")
-            .append(escape(macroId))
-            .append("\" data-opentfc-config=\"")
-            .append(escape(configJson))
-            .append("\" style=\"min-height: ").append(escape(height)).append(";\">");
-
-        // Spreadsheet action toolbar
-        html.append("<div class=\"opentfc-sheet-toolbar\"></div>");
-
-        // Spreadsheet viewport
-        html.append("<div class=\"opentfc-sheet-viewport\" style=\"width:100%; height:")
-            .append(escape(height)).append(";\"></div>");
-
-        html.append("</div>");
-        return html.toString();
+        String inner = "<div class=\"opentfc-sheet-toolbar\"></div>"
+                + "<div class=\"opentfc-sheet-viewport\" style=\"width:100%;max-height:" + escape(height)
+                + ";overflow:auto;\"></div>";
+        return container("opentfc-spreadsheet", macroId, config, inner);
     }
 }

@@ -5,8 +5,10 @@ import com.atlassian.confluence.pages.AttachmentManager;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import org.opentfc.model.TableModel;
 import org.opentfc.service.DataSourceResolver;
+import org.opentfc.service.OpenTfcSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,8 +16,6 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 /**
  * REST endpoint for resolving external and attachment table sources.
@@ -27,12 +27,19 @@ public class SourceRestResource {
 
     private final PageManager pageManager;
     private final AttachmentManager attachmentManager;
+    private final OpenTfcSettings settings;
     private final DataSourceResolver resolver = new DataSourceResolver();
 
+    public SourceRestResource(PageManager pageManager, AttachmentManager attachmentManager) {
+        this(pageManager, attachmentManager, null);
+    }
+
     public SourceRestResource(@ComponentImport PageManager pageManager,
-                              @ComponentImport AttachmentManager attachmentManager) {
+                              @ComponentImport AttachmentManager attachmentManager,
+                              @ComponentImport PluginSettingsFactory pluginSettingsFactory) {
         this.pageManager = pageManager;
         this.attachmentManager = attachmentManager;
+        this.settings = pluginSettingsFactory != null ? new OpenTfcSettings(pluginSettingsFactory) : null;
     }
 
     @GET
@@ -43,34 +50,37 @@ public class SourceRestResource {
                                   @QueryParam("attachmentName") String attachmentName,
                                   @QueryParam("url") String url,
                                   @QueryParam("encoding") @DefaultValue("UTF-8") String encoding,
-                                  @QueryParam("delimiter") @DefaultValue(",") String delimiter) {
+                                  @QueryParam("delimiter") @DefaultValue("auto") String delimiter) {
 
         try {
-            InputStream in = null;
+            String dataText = null;
             if (attachmentName != null && !attachmentName.isEmpty() && pageManager != null) {
                 Page page = pageManager.getPage(pageId);
                 if (page != null && attachmentManager != null) {
                     Attachment attachment = attachmentManager.getAttachment(page, attachmentName);
                     if (attachment != null) {
-                        in = attachmentManager.getAttachmentData(attachment);
+                        try (InputStream in = attachmentManager.getAttachmentData(attachment)) {
+                            byte[] bytes = DataSourceResolver.readLimited(in, DataSourceResolver.MAX_FETCH_SIZE);
+                            dataText = resolver.decode(bytes, encoding);
+                        }
                     }
                 }
             } else if (url != null && !url.isEmpty()) {
-                in = resolver.fetchSafeUrl(url);
+                java.util.List<String> wl = settings != null ? settings.getUrlWhitelist() : java.util.List.of("*");
+                byte[] bytes = resolver.fetchSafeUrl(url, wl);
+                dataText = resolver.decode(bytes, encoding);
             }
 
-            if (in == null) {
+            if (dataText == null) {
                 return Response.status(Response.Status.NOT_FOUND)
                         .entity("Source data stream could not be opened").build();
             }
 
             TableModel model;
-            Charset charset = Charset.forName(encoding);
             if ("json".equalsIgnoreCase(type)) {
-                model = resolver.parseJson(in);
+                model = resolver.parseJson(dataText, "$");
             } else {
-                char delim = delimiter.length() > 0 ? delimiter.charAt(0) : ',';
-                model = resolver.parseCsv(in, charset, delim);
+                model = resolver.parseCsv(dataText, delimiter);
             }
 
             model.setId(macroId);

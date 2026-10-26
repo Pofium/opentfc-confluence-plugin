@@ -2,17 +2,24 @@ package org.opentfc.macro;
 
 import com.atlassian.confluence.content.render.xhtml.ConversionContext;
 import com.atlassian.confluence.macro.MacroExecutionException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.atlassian.confluence.xhtml.api.XhtmlContent;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Macro rendering JSON data structures as a Confluence table.
+ * JSON Table macro: data comes from a page attachment, external URL (whitelisted) or inline body.
  */
 public class JsonTableMacro extends BaseOpenTfcMacro {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public JsonTableMacro() {
+        super(null);
+    }
+
+    public JsonTableMacro(@ComponentImport XhtmlContent xhtmlContent) {
+        super(xhtmlContent);
+    }
 
     @Override
     public BodyType getBodyType() {
@@ -20,32 +27,20 @@ public class JsonTableMacro extends BaseOpenTfcMacro {
     }
 
     @Override
-    public String execute(Map<String, String> parameters, String body, ConversionContext conversionContext)
+    public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-
         String macroId = getOrCreateMacroId(parameters);
-        String sourceType = parameters.getOrDefault("sourceType", "attachment");
-        String attachmentName = parameters.getOrDefault("attachmentName", "");
-        String url = parameters.getOrDefault("url", "");
-        String jsonPath = parameters.getOrDefault("jsonPath", "$");
-
-        long pageId = conversionContext.getEntity() != null ? conversionContext.getEntity().getId() : 0;
-
-        Map<String, Object> config = new HashMap<>();
+        Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
-        config.put("pageId", pageId);
-        config.put("sourceType", sourceType);
-        config.put("attachmentName", attachmentName);
-        config.put("url", url);
-        config.put("jsonPath", jsonPath);
+        config.put("pageId", pageIdOf(ctx));
+        config.put("type", "json");
+        config.put("sourceType", parameters.getOrDefault("sourceType", "attachment"));
+        config.put("attachmentName", parameters.getOrDefault("attachmentName", ""));
+        config.put("url", parameters.getOrDefault("url", ""));
+        config.put("jsonPath", parameters.getOrDefault("jsonPath", "$"));
+        config.put("inline", body != null ? body : "");
 
-        String configJson = "{}";
-        try {
-            configJson = objectMapper.writeValueAsString(config);
-        } catch (Exception ignored) {}
-
-        return "<div class=\"opentfc-container opentfc-json\" id=\"" +
-                escape(macroId) + "\" data-opentfc-config=\"" + escape(configJson) + "\">" +
-                "<div class=\"opentfc-json-grid\"></div></div>";
+        return container("opentfc-datasource opentfc-json opentfc-json-grid", macroId, config,
+                "<div class=\"opentfc-datasource-grid\">Загрузка данных…</div>");
     }
 }

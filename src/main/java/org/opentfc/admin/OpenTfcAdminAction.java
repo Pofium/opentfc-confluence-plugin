@@ -1,60 +1,42 @@
 package org.opentfc.admin;
 
 import com.atlassian.confluence.core.ConfluenceActionSupport;
-import com.atlassian.sal.api.pluginsettings.PluginSettings;
-import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
+import com.atlassian.xwork.RequireSecurityToken;
+import org.opentfc.service.OpenTfcSettings;
 
 /**
- * Confluence Administration Action for managing OpenTFC global settings.
+ * Admin page (/admin/opentfc/view-opentfc-admin.action): SQL limits and URL whitelist.
+ * Lives under /admin/ so Confluence enforces administrator permission.
  */
 public class OpenTfcAdminAction extends ConfluenceActionSupport {
 
-    private static final String SETTINGS_KEY = "org.opentfc.settings.";
-    private final PluginSettingsFactory pluginSettingsFactory;
+    private final transient OpenTfcSettings settings;
 
-    private int sqlTimeoutSeconds = 10;
-    private int maxResultRows = 50000;
+    private int sqlTimeoutSeconds = OpenTfcSettings.DEFAULT_SQL_TIMEOUT;
+    private int maxResultRows = OpenTfcSettings.DEFAULT_MAX_ROWS;
     private String allowedUrlWhitelist = "";
-    private boolean saved = false;
+    private boolean saved;
 
     public OpenTfcAdminAction(@ComponentImport PluginSettingsFactory pluginSettingsFactory) {
-        this.pluginSettingsFactory = pluginSettingsFactory;
+        this.settings = new OpenTfcSettings(pluginSettingsFactory);
     }
 
     @Override
     public String execute() throws Exception {
-        PluginSettings settings = pluginSettingsFactory.createGlobalSettings();
-
-        String timeoutStr = (String) settings.get(SETTINGS_KEY + "sqlTimeoutSeconds");
-        if (timeoutStr != null) {
-            try {
-                this.sqlTimeoutSeconds = Integer.parseInt(timeoutStr);
-            } catch (NumberFormatException ignored) {}
-        }
-
-        String maxRowsStr = (String) settings.get(SETTINGS_KEY + "maxResultRows");
-        if (maxRowsStr != null) {
-            try {
-                this.maxResultRows = Integer.parseInt(maxRowsStr);
-            } catch (NumberFormatException ignored) {}
-        }
-
-        this.allowedUrlWhitelist = (String) settings.get(SETTINGS_KEY + "allowedUrlWhitelist");
-        if (this.allowedUrlWhitelist == null) {
-            this.allowedUrlWhitelist = "";
-        }
-
+        sqlTimeoutSeconds = settings.getSqlTimeoutSeconds();
+        maxResultRows = settings.getMaxResultRows();
+        allowedUrlWhitelist = settings.getUrlWhitelistRaw();
         return SUCCESS;
     }
 
-    public String save() {
-        PluginSettings settings = pluginSettingsFactory.createGlobalSettings();
-        settings.put(SETTINGS_KEY + "sqlTimeoutSeconds", String.valueOf(sqlTimeoutSeconds));
-        settings.put(SETTINGS_KEY + "maxResultRows", String.valueOf(maxResultRows));
-        settings.put(SETTINGS_KEY + "allowedUrlWhitelist", allowedUrlWhitelist != null ? allowedUrlWhitelist : "");
-        this.saved = true;
-        return SUCCESS;
+    /** Save settings (XSRF token required). */
+    @RequireSecurityToken(true)
+    public String save() throws Exception {
+        settings.save(sqlTimeoutSeconds, maxResultRows, allowedUrlWhitelist);
+        saved = true;
+        return execute();
     }
 
     public int getSqlTimeoutSeconds() {
