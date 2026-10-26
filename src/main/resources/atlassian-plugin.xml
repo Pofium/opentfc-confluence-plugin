@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<atlassian-plugin key="org.opentfc.confluence.plugin" name="OpenTFC - Open Table Filter, Charts &amp; Spreadsheets" plugins-version="2">
+    <plugin-info>
+        <description>Полнофункциональный аналог плагина Table Filter, Charts and Spreadsheets для Confluence DC (8.5 - 9.x)</description>
+        <version>1.0.0-SNAPSHOT</version>
+        <vendor name="OpenTFC Project" url="https://github.com/opentfc" />
+        <param name="plugin-icon">images/plugin-icon.png</param>
+        <param name="plugin-logo">images/plugin-logo.png</param>
+    </plugin-info>
+
+    <!-- i18n Resource -->
+    <resource type="i18n" name="i18n" location="i18n/opentfc" />
+
+    <!-- Active Objects (AO) Tables -->
+    <ao key="ao-module">
+        <description>Active Objects entities for OpenTFC</description>
+        <entity>org.opentfc.ao.FilterProfile</entity>
+        <entity>org.opentfc.ao.SpreadsheetMeta</entity>
+        <entity>org.opentfc.ao.UserSettings</entity>
+    </ao>
+
+    <!-- REST API Resource v1 -->
+    <rest key="opentfc-rest" path="/opentfc" version="1.0">
+        <description>OpenTFC REST API</description>
+        <package>org.opentfc.rest</package>
+    </rest>
+
+    <!-- Web Resources (WRM) -->
+    <web-resource key="opentfc-resources" name="OpenTFC Front-end Assets">
+        <dependency>com.atlassian.auiplugin:ajs</dependency>
+        <dependency>com.atlassian.auiplugin:aui-select2</dependency>
+        <dependency>com.atlassian.auiplugin:aui-date-picker</dependency>
+        <transformation extension="js">
+            <transformer key="jsI18n" />
+        </transformation>
+        <resource type="download" name="opentfc.bundle.css" location="css/opentfc.bundle.css" />
+        <resource type="download" name="opentfc.bundle.js" location="js/opentfc.bundle.js" />
+        <context>atl.general</context>
+        <context>viewcontent</context>
+        <context>preview</context>
+    </web-resource>
+
+    <!-- 1. Table Filter Macro -->
+    <xhtml-macro key="opentfc-table-filter"
+                 name="Open Table Filter"
+                 class="org.opentfc.macro.TableFilterMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/table-filter.png">
+        <description key="opentfc.macro.tablefilter.desc">Фильтрация, сортировка, скрытие колонок и расчет итогов для таблиц Confluence</description>
+        <category name="formatting" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="freezeHeader" type="boolean" default="true" />
+            <parameter name="freezeColumns" type="int" default="0" />
+            <parameter name="filterStatus" type="boolean" default="true" />
+            <parameter name="totalsRow" type="boolean" default="false" />
+            <parameter name="enablePagination" type="boolean" default="true" />
+            <parameter name="pageSize" type="enum" default="25">
+                <value name="10" />
+                <value name="25" />
+                <value name="50" />
+                <value name="100" />
+                <value name="all" />
+            </parameter>
+            <parameter name="hideableColumns" type="string" default="" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 2. Chart from Table Macro -->
+    <xhtml-macro key="opentfc-chart"
+                 name="Open Chart from Table"
+                 class="org.opentfc.macro.ChartFromTableMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/chart.png">
+        <description key="opentfc.macro.chart.desc">Построение интерактивных диаграмм и графиков по табличным данным</description>
+        <category name="visuals" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="sourceMacroId" type="string" default="" />
+            <parameter name="chartType" type="enum" default="column">
+                <value name="column" />
+                <value name="bar" />
+                <value name="line" />
+                <value name="area" />
+                <value name="pie" />
+                <value name="donut" />
+                <value name="scatter" />
+                <value name="radar" />
+                <value name="funnel" />
+                <value name="gantt" />
+            </parameter>
+            <parameter name="xAxisColumn" type="string" default="" />
+            <parameter name="yAxisColumns" type="string" default="" />
+            <parameter name="aggregation" type="enum" default="none">
+                <value name="none" />
+                <value name="sum" />
+                <value name="count" />
+                <value name="avg" />
+                <value name="min" />
+                <value name="max" />
+            </parameter>
+            <parameter name="chartTitle" type="string" default="" />
+            <parameter name="height" type="string" default="400px" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 3. Pivot Table Macro -->
+    <xhtml-macro key="opentfc-pivot"
+                 name="Open Pivot Table"
+                 class="org.opentfc.macro.PivotTableMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/pivot.png">
+        <description key="opentfc.macro.pivot.desc">Сводные таблицы для группировки и агрегации табличных данных</description>
+        <category name="formatting" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="sourceMacroId" type="string" default="" />
+            <parameter name="rowFields" type="string" default="" />
+            <parameter name="columnFields" type="string" default="" />
+            <parameter name="valueFields" type="string" default="" />
+            <parameter name="aggregateFunction" type="enum" default="sum">
+                <value name="sum" />
+                <value name="count" />
+                <value name="avg" />
+                <value name="min" />
+                <value name="max" />
+            </parameter>
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 4. Table Transformer Macro -->
+    <xhtml-macro key="opentfc-transformer"
+                 name="Open Table Transformer"
+                 class="org.opentfc.macro.TableTransformerMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/transformer.png">
+        <description key="opentfc.macro.transformer.desc">SQL-трансформация и объединение нескольких таблиц с помощью DuckDB</description>
+        <category name="advanced" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="sourceMacroIds" type="string" default="" />
+            <parameter name="sqlQuery" type="string" default="SELECT * FROM T1" />
+            <parameter name="preset" type="string" default="" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 5. Table Spreadsheet Macro -->
+    <xhtml-macro key="opentfc-spreadsheet"
+                 name="Open Table Spreadsheet"
+                 class="org.opentfc.macro.TableSpreadsheetMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/spreadsheet.png">
+        <description key="opentfc.macro.spreadsheet.desc">Полноценные электронные таблицы со встроенными формулами и сохранением в XLSX</description>
+        <category name="formatting" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="attachmentName" type="string" default="" />
+            <parameter name="readOnly" type="boolean" default="false" />
+            <parameter name="height" type="string" default="500px" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 6. Table Spreadsheet Include Macro -->
+    <xhtml-macro key="opentfc-spreadsheet-include"
+                 name="Open Spreadsheet Include"
+                 class="org.opentfc.macro.SpreadsheetIncludeMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/spreadsheet-include.png">
+        <description key="opentfc.macro.spreadsheet.include.desc">Вставка диапазона или листа электронной таблицы с другой страницы</description>
+        <category name="confluence-content" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="pageId" type="string" default="" />
+            <parameter name="sheetName" type="string" default="" />
+            <parameter name="range" type="string" default="A1:Z100" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 7. Attachment Table Macro -->
+    <xhtml-macro key="opentfc-attachment-table"
+                 name="Open Attachment Table"
+                 class="org.opentfc.macro.AttachmentTableMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/attachment-table.png">
+        <description key="opentfc.macro.attachment.desc">Таблица вложений страницы с поддержкой фильтрации и скачивания</description>
+        <category name="confluence-content" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="includeExtensions" type="string" default="" />
+            <parameter name="excludeExtensions" type="string" default="" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 8. CSV Table Macro -->
+    <xhtml-macro key="opentfc-csv"
+                 name="Open CSV Table"
+                 class="org.opentfc.macro.CsvTableMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/csv.png">
+        <description key="opentfc.macro.csv.desc">Импорт и отображение CSV/TSV данных из вложения или внешнего URL</description>
+        <category name="external-content" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="sourceType" type="enum" default="attachment">
+                <value name="attachment" />
+                <value name="url" />
+            </parameter>
+            <parameter name="attachmentName" type="string" default="" />
+            <parameter name="url" type="string" default="" />
+            <parameter name="delimiter" type="string" default="auto" />
+            <parameter name="encoding" type="string" default="UTF-8" />
+        </parameters>
+    </xhtml-macro>
+
+    <!-- 9. JSON Table Macro -->
+    <xhtml-macro key="opentfc-json"
+                 name="Open JSON Table"
+                 class="org.opentfc.macro.JsonTableMacro"
+                 icon="/download/resources/org.opentfc.confluence.plugin:opentfc-resources/images/json.png">
+        <description key="opentfc.macro.json.desc">Импорт и отображение табличных JSON-данных из вложения или URL</description>
+        <category name="external-content" />
+        <parameters>
+            <parameter name="macroId" type="string" default="" />
+            <parameter name="sourceType" type="enum" default="attachment">
+                <value name="attachment" />
+                <value name="url" />
+            </parameter>
+            <parameter name="attachmentName" type="string" default="" />
+            <parameter name="url" type="string" default="" />
+            <parameter name="jsonPath" type="string" default="$" />
+        </parameters>
+    </xhtml-macro>
+</atlassian-plugin>

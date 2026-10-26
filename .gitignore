@@ -1,0 +1,22 @@
+# Build output
+target/
+dist/
+node_modules/
+
+# IDE / Editors
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+
+# Logs and temporary files
+logs/
+*.log
+.mimosa/
+
+# OS files
+.DS_Store
+Thumbs.db
