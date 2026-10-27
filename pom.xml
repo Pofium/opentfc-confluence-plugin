@@ -137,6 +137,12 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>com.atlassian.plugin</groupId>
+            <artifactId>atlassian-spring-scanner-runtime</artifactId>
+            <version>${atlassian.spring.scanner.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
             <version>1</version>
@@ -230,7 +236,7 @@
                     <jvmArgs>-Xmx2g</jvmArgs>
                     <instructions>
                         <Atlassian-Plugin-Key>org.opentfc.confluence.plugin</Atlassian-Plugin-Key>
-                        <Atlassian-Scan-Folders>META-INF/plugin-descriptors</Atlassian-Scan-Folders>
+                        <Atlassian-Scan-Folders>META-INF/plugin-components</Atlassian-Scan-Folders>
                         <Spring-Context>*</Spring-Context>
                         <Export-Package/>
                         <Import-Package>
