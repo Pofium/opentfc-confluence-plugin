@@ -78,11 +78,13 @@
         <alias name="tablefilter" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
-            <parameter name="freezeHeader" type="boolean" default="true" />
+            <parameter name="showSearchBox" type="boolean" default="true" />
+            <parameter name="showColumnFilters" type="boolean" default="true" />
+            <parameter name="stickyHeader" type="boolean" default="true" />
             <parameter name="freezeColumns" type="int" default="0" />
-            <parameter name="filterStatus" type="boolean" default="true" />
-            <parameter name="totalsRow" type="boolean" default="false" />
-            <parameter name="enablePagination" type="boolean" default="true" />
+            <parameter name="showTotals" type="boolean" default="false" />
+            <parameter name="allowHideColumns" type="boolean" default="true" />
+            <parameter name="showExportButtons" type="boolean" default="true" />
             <parameter name="pageSize" type="enum" default="25">
                 <value name="10" />
                 <value name="25" />
@@ -90,6 +92,11 @@
                 <value name="100" />
                 <value name="all" />
             </parameter>
+            <parameter name="enablePagination" type="boolean" default="true" />
+            <!-- Backwards-compatibility aliases -->
+            <parameter name="freezeHeader" type="boolean" default="true" />
+            <parameter name="filterStatus" type="boolean" default="true" />
+            <parameter name="totalsRow" type="boolean" default="false" />
             <parameter name="hideableColumns" type="string" default="" />
         </parameters>
     </xhtml-macro>

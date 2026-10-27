@@ -1,12 +1,30 @@
 import { ColumnDef, ColumnType, FilterState, RowData, TableData } from '../core/table-model';
 
+interface ExtendedColumnDef extends ColumnDef {
+  currencySuffix?: string;
+}
+
+interface SavedProfile {
+  id: number;
+  pageId: number;
+  macroId: string;
+  name: string;
+  stateJson: string;
+}
+
 export class TableFilterComponent {
   private container: HTMLElement;
   private config: any;
-  private tableData: TableData;
+  private tableData: {
+    id: string;
+    columns: ExtendedColumnDef[];
+    rows: RowData[];
+    totalRows: number;
+  };
   private filteredRows: RowData[] = [];
   private state: FilterState;
   private activeProfileName: string = '';
+  private savedProfiles: SavedProfile[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -17,13 +35,31 @@ export class TableFilterComponent {
       this.config = {};
     }
 
+    // Default configuration normalization
+    if (this.config.showSearchBox === undefined) this.config.showSearchBox = true;
+    if (this.config.showColumnFilters === undefined) {
+      this.config.showColumnFilters = this.config.filterStatus !== undefined ? this.config.filterStatus : true;
+    }
+    if (this.config.stickyHeader === undefined) {
+      this.config.stickyHeader = this.config.freezeHeader !== undefined ? this.config.freezeHeader : true;
+    }
+    if (this.config.showTotals === undefined) {
+      this.config.showTotals = this.config.totalsRow !== undefined ? this.config.totalsRow : false;
+    }
+    if (this.config.allowHideColumns === undefined) this.config.allowHideColumns = true;
+    if (this.config.showExportButtons === undefined) this.config.showExportButtons = true;
+    if (this.config.enablePagination === undefined) this.config.enablePagination = true;
+
+    const pageSizeConfig = this.config.pageSize || '25';
+    const initPageSize = pageSizeConfig === 'all' ? 'all' : parseInt(pageSizeConfig, 10);
+
     this.state = {
       globalSearch: '',
       columnFilters: {},
       sorts: [],
       hiddenColumns: [],
       currentPage: 1,
-      pageSize: this.config.pageSize === 'all' ? 'all' : parseInt(this.config.pageSize || '25', 10)
+      pageSize: initPageSize
     };
 
     this.tableData = this.parseDOMTable();
@@ -32,16 +68,17 @@ export class TableFilterComponent {
     this.loadStateFromUrl();
 
     this.initUI();
+    this.loadProfiles();
     this.applyFilters();
   }
 
-  private parseDOMTable(): TableData {
+  private parseDOMTable() {
     const tableEl = this.container.querySelector('table');
     if (!tableEl) {
       return { id: this.config.macroId, columns: [], rows: [], totalRows: 0 };
     }
 
-    const columns: ColumnDef[] = [];
+    const columns: ExtendedColumnDef[] = [];
     const headers = tableEl.querySelectorAll('thead th, thead td, tr:first-child th, tr:first-child td');
     headers.forEach((th, idx) => {
       columns.push({
@@ -85,7 +122,7 @@ export class TableFilterComponent {
     };
   }
 
-  private detectColumnTypes(columns: ColumnDef[], rows: RowData[]) {
+  private detectColumnTypes(columns: ExtendedColumnDef[], rows: RowData[]) {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$|^\d{2}\.\d{2}\.\d{4}$|^\d{2}\/\d{2}\/\d{4}$/;
 
     columns.forEach((col, cIdx) => {
@@ -93,27 +130,47 @@ export class TableFilterComponent {
       let dateCount = 0;
       let nonBlank = 0;
       const uniqueVals = new Set<string>();
+      const currencySuffixes: Record<string, number> = {};
 
       rows.forEach(r => {
         const val = r.cells[cIdx]?.val;
         if (val !== undefined && val !== '') {
           nonBlank++;
           uniqueVals.add(val);
-          const cleaned = String(val).replace(/[,\s$€₽%]/g, '');
+
+          // Detect currency symbol or suffix (e.g. ₽, $, €, руб, etc.)
+          const strVal = String(val).trim();
+          const currMatch = strVal.match(/([₽$€¥]|руб\.?|р\.?)$/i);
+          if (currMatch) {
+            const sym = ' ' + currMatch[1];
+            currencySuffixes[sym] = (currencySuffixes[sym] || 0) + 1;
+          }
+
+          const cleaned = strVal.replace(/[,\s$€₽¥руб\.р]/gi, '');
           if (!isNaN(Number(cleaned)) && cleaned.trim() !== '') {
             numCount++;
-          } else if (dateRegex.test(String(val).trim())) {
+          } else if (dateRegex.test(strVal)) {
             dateCount++;
           }
         }
       });
 
       if (nonBlank > 0) {
-        if (numCount / nonBlank >= 0.8) {
+        if (numCount / nonBlank >= 0.7) {
           col.type = 'NUMBER';
-        } else if (dateCount / nonBlank >= 0.8) {
+          // Find most popular currency suffix if any
+          let maxSuffix = '';
+          let maxCount = 0;
+          for (const [sfx, count] of Object.entries(currencySuffixes)) {
+            if (count > maxCount) {
+              maxCount = count;
+              maxSuffix = sfx;
+            }
+          }
+          if (maxCount > 0) col.currencySuffix = maxSuffix;
+        } else if (dateCount / nonBlank >= 0.7) {
           col.type = 'DATE';
-        } else if (uniqueVals.size > 0 && uniqueVals.size <= 30 && nonBlank > 3) {
+        } else if (uniqueVals.size > 0 && uniqueVals.size <= 50) {
           col.type = 'SELECT';
           col.options = Array.from(uniqueVals).sort();
         } else {
@@ -128,27 +185,67 @@ export class TableFilterComponent {
     if (!toolbar) return;
 
     toolbar.innerHTML = `
-      <div class="opentfc-search-box">
-        <input type="text" class="opentfc-input opentfc-search-input" placeholder="Поиск по таблице..." value="${this.escapeHtml(this.state.globalSearch)}" />
+      <div class="opentfc-toolbar-primary">
+        ${this.config.showSearchBox ? `
+          <div class="opentfc-search-box">
+            <input type="text" class="opentfc-input opentfc-search-input" placeholder="Поиск по всем колонкам..." value="${this.escapeHtml(this.state.globalSearch)}" />
+          </div>
+        ` : ''}
+
+        ${this.config.allowHideColumns ? `
+          <div class="opentfc-dropdown opentfc-dropdown-cols">
+            <button class="opentfc-btn opentfc-btn-cols">Колонки ▾</button>
+            <div class="opentfc-dropdown-menu opentfc-cols-menu">
+              <div class="opentfc-dropdown-header">Отображение колонок</div>
+              <div class="opentfc-dropdown-divider"></div>
+              <div class="opentfc-cols-list" style="max-height: 220px; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 4px;">
+                ${this.tableData.columns.map((c, idx) => `
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                    <input type="checkbox" class="opentfc-col-cb" data-col-idx="${idx}" ${!this.state.hiddenColumns.includes(idx) ? 'checked' : ''} />
+                    <span>${this.escapeHtml(c.name)}</span>
+                  </label>
+                `).join('')}
+              </div>
+              <div class="opentfc-dropdown-divider"></div>
+              <div style="padding: 4px 8px; display: flex; justify-content: space-between; font-size: 11px;">
+                <a href="javascript:void(0)" class="opentfc-cols-show-all" style="color: #0052cc;">Все</a>
+                <a href="javascript:void(0)" class="opentfc-cols-reset" style="color: #6b778c;">Сбросить</a>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        ${this.config.showExportButtons ? `
+          <div class="opentfc-dropdown opentfc-dropdown-export">
+            <button class="opentfc-btn opentfc-btn-export">Экспорт ▾</button>
+            <div class="opentfc-dropdown-menu opentfc-export-menu">
+              <div class="opentfc-dropdown-item opentfc-export-xlsx">Excel (XLSX)</div>
+              <div class="opentfc-dropdown-item opentfc-export-csv">CSV</div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="opentfc-dropdown opentfc-dropdown-views">
+          <button class="opentfc-btn opentfc-btn-views">Виды ▾</button>
+          <div class="opentfc-dropdown-menu opentfc-views-menu">
+            <div class="opentfc-dropdown-header">Сохраненные виды</div>
+            <div class="opentfc-views-list">
+              <div style="padding: 6px 12px; color: #6b778c; font-size: 12px;">Нет сохраненных видов</div>
+            </div>
+            <div class="opentfc-dropdown-divider"></div>
+            <div class="opentfc-dropdown-item opentfc-view-save" style="color: #0052cc; font-weight: 500;">+ Сохранить текущий вид...</div>
+          </div>
+        </div>
+
+        <button class="opentfc-btn opentfc-btn-reset" title="Сбросить все фильтры" style="margin-left: auto;">Сбросить фильтры</button>
       </div>
 
-      <div class="opentfc-filters-dropdowns" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-        <!-- Dynamic column filter buttons -->
-      </div>
-
-      <div class="opentfc-actions" style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
-        <button class="opentfc-btn opentfc-btn-columns" title="Настройка видимости колонок">Колонки</button>
-        <button class="opentfc-btn opentfc-btn-profiles" title="Профили фильтров">Профили</button>
-        <button class="opentfc-btn opentfc-btn-export-csv" title="Экспорт в CSV">CSV</button>
-        <button class="opentfc-btn opentfc-btn-export-xlsx" title="Экспорт в Excel">XLSX</button>
-        <button class="opentfc-btn opentfc-btn-reset" title="Сбросить все фильтры">Сброс</button>
-      </div>
+      ${this.config.showColumnFilters ? `
+        <div class="opentfc-toolbar-secondary"></div>
+      ` : ''}
     `;
 
-    // Render filter controls for columns
-    this.renderColumnFilterControls();
-
-    // Bind event handlers
+    // Global search input listener
     const searchInput = toolbar.querySelector('.opentfc-search-input') as HTMLInputElement;
     let debounceTimer: any;
     searchInput?.addEventListener('input', () => {
@@ -160,18 +257,103 @@ export class TableFilterComponent {
       }, 200);
     });
 
-    toolbar.querySelector('.opentfc-btn-columns')?.addEventListener('click', () => this.toggleColumnsModal());
-    toolbar.querySelector('.opentfc-btn-profiles')?.addEventListener('click', () => this.toggleProfilesModal());
-    toolbar.querySelector('.opentfc-btn-export-csv')?.addEventListener('click', () => this.exportCsv());
-    toolbar.querySelector('.opentfc-btn-export-xlsx')?.addEventListener('click', () => this.exportXlsx());
+    // Reset button
     toolbar.querySelector('.opentfc-btn-reset')?.addEventListener('click', () => this.resetFilters());
+
+    // Dropdown toggle logic
+    this.setupDropdown(toolbar.querySelector('.opentfc-dropdown-cols'), toolbar.querySelector('.opentfc-btn-cols'), toolbar.querySelector('.opentfc-cols-menu'));
+    this.setupDropdown(toolbar.querySelector('.opentfc-dropdown-export'), toolbar.querySelector('.opentfc-btn-export'), toolbar.querySelector('.opentfc-export-menu'));
+    this.setupDropdown(toolbar.querySelector('.opentfc-dropdown-views'), toolbar.querySelector('.opentfc-btn-views'), toolbar.querySelector('.opentfc-views-menu'));
+
+    // Columns visibility listeners
+    toolbar.querySelectorAll('.opentfc-col-cb').forEach(cb => {
+      cb.addEventListener('change', (e: any) => {
+        const cIdx = parseInt(e.target.getAttribute('data-col-idx'), 10);
+        if (e.target.checked) {
+          this.state.hiddenColumns = this.state.hiddenColumns.filter(i => i !== cIdx);
+        } else {
+          if (!this.state.hiddenColumns.includes(cIdx)) {
+            this.state.hiddenColumns.push(cIdx);
+          }
+        }
+        this.renderTableHeaderVisibility();
+        this.renderTableBody();
+        this.renderColumnFilterControls();
+        this.applyFrozenColumns();
+      });
+    });
+
+    toolbar.querySelector('.opentfc-cols-show-all')?.addEventListener('click', () => {
+      this.state.hiddenColumns = [];
+      toolbar.querySelectorAll('.opentfc-col-cb').forEach((cb: any) => cb.checked = true);
+      this.renderTableHeaderVisibility();
+      this.renderTableBody();
+      this.renderColumnFilterControls();
+      this.applyFrozenColumns();
+    });
+
+    toolbar.querySelector('.opentfc-cols-reset')?.addEventListener('click', () => {
+      this.state.hiddenColumns = [];
+      toolbar.querySelectorAll('.opentfc-col-cb').forEach((cb: any) => cb.checked = true);
+      this.renderTableHeaderVisibility();
+      this.renderTableBody();
+      this.renderColumnFilterControls();
+      this.applyFrozenColumns();
+    });
+
+    // Export listeners
+    toolbar.querySelector('.opentfc-export-csv')?.addEventListener('click', () => this.exportCsv());
+    toolbar.querySelector('.opentfc-export-xlsx')?.addEventListener('click', () => this.exportXlsx());
+
+    // Save view listener
+    toolbar.querySelector('.opentfc-view-save')?.addEventListener('click', () => this.promptSaveProfile());
+
+    // Secondary Filter Row
+    if (this.config.showColumnFilters) {
+      this.renderColumnFilterControls();
+    }
+
+    // Sticky Header
+    if (this.config.stickyHeader) {
+      const tableWrapper = this.container.querySelector('.opentfc-table-wrapper');
+      tableWrapper?.classList.add('opentfc-sticky-header');
+    }
+
+    // Freeze Columns
+    this.applyFrozenColumns();
 
     // Table header sort listeners
     this.bindHeaderSorts();
+
+    // Close open dropdowns on click outside
+    document.addEventListener('click', (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!this.container.contains(target)) {
+        this.closeAllDropdowns();
+      }
+    });
+  }
+
+  private setupDropdown(container: Element | null, trigger: Element | null, menu: Element | null) {
+    if (!container || !trigger || !menu) return;
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isShown = menu.classList.contains('show');
+      this.closeAllDropdowns();
+      if (!isShown) {
+        menu.classList.add('show');
+      }
+    });
+  }
+
+  private closeAllDropdowns() {
+    this.container.querySelectorAll('.opentfc-dropdown-menu.show, .opentfc-multiselect-panel.show').forEach(el => {
+      el.classList.remove('show');
+    });
   }
 
   private renderColumnFilterControls() {
-    const filterContainer = this.container.querySelector('.opentfc-filters-dropdowns');
+    const filterContainer = this.container.querySelector('.opentfc-toolbar-secondary');
     if (!filterContainer) return;
     filterContainer.innerHTML = '';
 
@@ -179,59 +361,284 @@ export class TableFilterComponent {
       if (this.state.hiddenColumns.includes(idx)) return;
 
       if (col.type === 'SELECT' && col.options && col.options.length > 0) {
-        const select = document.createElement('select');
-        select.className = 'opentfc-input opentfc-col-select';
-        select.style.maxWidth = '160px';
-        select.innerHTML = `<option value="">${this.escapeHtml(col.name)}: Все</option>` +
-          col.options.map(opt => `<option value="${this.escapeHtml(opt)}">${this.escapeHtml(opt)}</option>`).join('');
+        const group = document.createElement('div');
+        group.className = 'opentfc-filter-group opentfc-filter-select';
 
-        select.addEventListener('change', () => {
-          if (select.value) {
-            this.state.columnFilters[idx] = select.value;
+        const label = document.createElement('span');
+        label.className = 'opentfc-filter-label';
+        label.textContent = `${col.name}:`;
+        group.appendChild(label);
+
+        const currentFilter = this.state.columnFilters[idx];
+        const selectedList: string[] = Array.isArray(currentFilter)
+          ? currentFilter
+          : typeof currentFilter === 'string' && currentFilter ? [currentFilter] : [];
+
+        let summaryText = 'Все';
+        if (selectedList.length === 1) {
+          summaryText = selectedList[0];
+        } else if (selectedList.length > 1) {
+          summaryText = selectedList.length <= 2 ? selectedList.join(', ') : `${selectedList.length} выбрано`;
+        }
+
+        const trigger = document.createElement('button');
+        trigger.className = 'opentfc-select-trigger';
+        trigger.innerHTML = `[ ${this.escapeHtml(summaryText)} ▾ ]`;
+
+        const panel = document.createElement('div');
+        panel.className = 'opentfc-multiselect-panel';
+        panel.innerHTML = `
+          <div class="opentfc-multiselect-actions">
+            <span class="opentfc-multiselect-link opentfc-select-all">Выбрать все</span>
+            <span class="opentfc-multiselect-link opentfc-clear-all" style="color:#6b778c;">Очистить</span>
+          </div>
+          <div class="opentfc-multiselect-options">
+            ${col.options.map(opt => `
+              <label class="opentfc-multiselect-option">
+                <input type="checkbox" value="${this.escapeHtml(opt)}" ${selectedList.includes(opt) ? 'checked' : ''} />
+                <span>${this.escapeHtml(opt)}</span>
+              </label>
+            `).join('')}
+          </div>
+        `;
+
+        trigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isShown = panel.classList.contains('show');
+          this.closeAllDropdowns();
+          if (!isShown) panel.classList.add('show');
+        });
+
+        panel.addEventListener('click', (e) => e.stopPropagation());
+
+        const updateSelection = () => {
+          const checked = Array.from(panel.querySelectorAll('input[type="checkbox"]:checked')).map((cb: any) => cb.value);
+          if (checked.length === 0 || checked.length === col.options?.length) {
+            delete this.state.columnFilters[idx];
+            trigger.innerHTML = `[ Все ▾ ]`;
+          } else {
+            this.state.columnFilters[idx] = checked;
+            trigger.innerHTML = `[ ${this.escapeHtml(checked.length <= 2 ? checked.join(', ') : `${checked.length} выбрано`)} ▾ ]`;
+          }
+          this.state.currentPage = 1;
+          this.applyFilters();
+        };
+
+        panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.addEventListener('change', updateSelection);
+        });
+
+        panel.querySelector('.opentfc-select-all')?.addEventListener('click', () => {
+          panel.querySelectorAll('input[type="checkbox"]').forEach((cb: any) => cb.checked = true);
+          delete this.state.columnFilters[idx];
+          trigger.innerHTML = `[ Все ▾ ]`;
+          this.state.currentPage = 1;
+          this.applyFilters();
+        });
+
+        panel.querySelector('.opentfc-clear-all')?.addEventListener('click', () => {
+          panel.querySelectorAll('input[type="checkbox"]').forEach((cb: any) => cb.checked = false);
+          this.state.columnFilters[idx] = [];
+          trigger.innerHTML = `[ Пусто ▾ ]`;
+          this.state.currentPage = 1;
+          this.applyFilters();
+        });
+
+        group.appendChild(trigger);
+        group.appendChild(panel);
+        filterContainer.appendChild(group);
+
+      } else if (col.type === 'NUMBER') {
+        const group = document.createElement('div');
+        group.className = 'opentfc-filter-group opentfc-filter-number';
+
+        const label = document.createElement('span');
+        label.className = 'opentfc-filter-label';
+        label.textContent = `${col.name}:`;
+        group.appendChild(label);
+
+        const current = (this.state.columnFilters[idx] as any) || {};
+        const minVal = current.min !== undefined ? current.min : '';
+        const maxVal = current.max !== undefined ? current.max : '';
+
+        const minInput = document.createElement('input');
+        minInput.type = 'number';
+        minInput.className = 'opentfc-input opentfc-input-num opentfc-num-min';
+        minInput.placeholder = 'От';
+        minInput.value = minVal;
+
+        const sep = document.createElement('span');
+        sep.className = 'opentfc-range-sep';
+        sep.textContent = '—';
+
+        const maxInput = document.createElement('input');
+        maxInput.type = 'number';
+        maxInput.className = 'opentfc-input opentfc-input-num opentfc-num-max';
+        maxInput.placeholder = 'До';
+        maxInput.value = maxVal;
+
+        const updateNumberFilter = () => {
+          const min = minInput.value.trim() !== '' ? parseFloat(minInput.value) : undefined;
+          const max = maxInput.value.trim() !== '' ? parseFloat(maxInput.value) : undefined;
+
+          if (min !== undefined || max !== undefined) {
+            this.state.columnFilters[idx] = { min, max };
           } else {
             delete this.state.columnFilters[idx];
           }
           this.state.currentPage = 1;
           this.applyFilters();
-        });
-        filterContainer.appendChild(select);
-      } else if (col.type === 'NUMBER') {
-        const btn = document.createElement('button');
-        btn.className = 'opentfc-btn';
-        btn.textContent = `${col.name} (диапазон)`;
-        btn.addEventListener('click', () => {
-          const current = (this.state.columnFilters[idx] as any) || {};
-          const minVal = prompt(`Минимум для "${col.name}":`, current.min !== undefined ? current.min : '');
-          const maxVal = prompt(`Максимум для "${col.name}":`, current.max !== undefined ? current.max : '');
+        };
 
-          const numMin = minVal && minVal.trim() !== '' ? parseFloat(minVal) : undefined;
-          const numMax = maxVal && maxVal.trim() !== '' ? parseFloat(maxVal) : undefined;
+        minInput.addEventListener('input', updateNumberFilter);
+        maxInput.addEventListener('input', updateNumberFilter);
 
-          if (numMin !== undefined || numMax !== undefined) {
-            this.state.columnFilters[idx] = { min: numMin, max: numMax };
-          } else {
-            delete this.state.columnFilters[idx];
-          }
-          this.applyFilters();
-        });
-        filterContainer.appendChild(btn);
+        group.appendChild(minInput);
+        group.appendChild(sep);
+        group.appendChild(maxInput);
+        filterContainer.appendChild(group);
+
       } else if (col.type === 'DATE') {
-        const btn = document.createElement('button');
-        btn.className = 'opentfc-btn';
-        btn.textContent = `${col.name} (дата)`;
-        btn.addEventListener('click', () => {
-          const current = (this.state.columnFilters[idx] as any) || {};
-          const fromVal = prompt(`Дата от (ГГГГ-ММ-ДД) для "${col.name}":`, current.from || '');
-          const toVal = prompt(`Дата до (ГГГГ-ММ-ДД) для "${col.name}":`, current.to || '');
+        const group = document.createElement('div');
+        group.className = 'opentfc-filter-group opentfc-filter-date';
 
-          if (fromVal || toVal) {
-            this.state.columnFilters[idx] = { from: fromVal || undefined, to: toVal || undefined };
+        const label = document.createElement('span');
+        label.className = 'opentfc-filter-label';
+        label.textContent = `${col.name}:`;
+        group.appendChild(label);
+
+        const current = (this.state.columnFilters[idx] as any) || {};
+        const fromVal = current.from || '';
+        const toVal = current.to || '';
+
+        const fromInput = document.createElement('input');
+        fromInput.type = 'date';
+        fromInput.className = 'opentfc-input opentfc-input-date opentfc-date-from';
+        fromInput.value = fromVal;
+        fromInput.title = 'Начальная дата';
+
+        const sep = document.createElement('span');
+        sep.className = 'opentfc-range-sep';
+        sep.textContent = '—';
+
+        const toInput = document.createElement('input');
+        toInput.type = 'date';
+        toInput.className = 'opentfc-input opentfc-input-date opentfc-date-to';
+        toInput.value = toVal;
+        toInput.title = 'Конечная дата';
+
+        const updateDateFilter = () => {
+          const from = fromInput.value.trim() || undefined;
+          const to = toInput.value.trim() || undefined;
+
+          if (from || to) {
+            this.state.columnFilters[idx] = { from, to };
           } else {
             delete this.state.columnFilters[idx];
           }
+          this.state.currentPage = 1;
           this.applyFilters();
+        };
+
+        fromInput.addEventListener('change', updateDateFilter);
+        toInput.addEventListener('change', updateDateFilter);
+
+        group.appendChild(fromInput);
+        group.appendChild(sep);
+        group.appendChild(toInput);
+        filterContainer.appendChild(group);
+
+      } else {
+        // Text Column
+        const group = document.createElement('div');
+        group.className = 'opentfc-filter-group opentfc-filter-text';
+
+        const label = document.createElement('span');
+        label.className = 'opentfc-filter-label';
+        label.textContent = `${col.name}:`;
+        group.appendChild(label);
+
+        const txtInput = document.createElement('input');
+        txtInput.type = 'text';
+        txtInput.className = 'opentfc-input opentfc-input-txt';
+        txtInput.placeholder = 'Поиск...';
+        txtInput.value = typeof this.state.columnFilters[idx] === 'string' ? (this.state.columnFilters[idx] as string) : '';
+
+        let txtDebounce: any;
+        txtInput.addEventListener('input', () => {
+          clearTimeout(txtDebounce);
+          txtDebounce = setTimeout(() => {
+            const val = txtInput.value.trim();
+            if (val) {
+              this.state.columnFilters[idx] = val;
+            } else {
+              delete this.state.columnFilters[idx];
+            }
+            this.state.currentPage = 1;
+            this.applyFilters();
+          }, 200);
         });
-        filterContainer.appendChild(btn);
+
+        group.appendChild(txtInput);
+        filterContainer.appendChild(group);
+      }
+    });
+  }
+
+  private applyFrozenColumns() {
+    const freezeCount = Math.max(0, parseInt(this.config.freezeColumns || '0', 10));
+    const tableWrapper = this.container.querySelector('.opentfc-table-wrapper');
+    if (!tableWrapper) return;
+
+    const thEls = tableWrapper.querySelectorAll('th');
+    const trEls = tableWrapper.querySelectorAll('tbody tr');
+
+    // Reset previous frozen classes and styles
+    thEls.forEach(th => {
+      th.classList.remove('opentfc-frozen-cell', 'opentfc-frozen-last');
+      th.style.left = '';
+    });
+    trEls.forEach(tr => {
+      tr.querySelectorAll('td').forEach(td => {
+        td.classList.remove('opentfc-frozen-cell', 'opentfc-frozen-last');
+        td.style.left = '';
+      });
+    });
+
+    if (freezeCount <= 0) return;
+
+    // Calculate left positions
+    let currentLeft = 0;
+    let visibleFrozenCount = 0;
+
+    this.tableData.columns.forEach((col, idx) => {
+      if (this.state.hiddenColumns.includes(idx)) return;
+      if (visibleFrozenCount >= freezeCount) return;
+
+      const th = thEls[visibleFrozenCount] as HTMLElement;
+      if (th) {
+        const width = th.offsetWidth || 100;
+        th.classList.add('opentfc-frozen-cell');
+        th.style.left = `${currentLeft}px`;
+
+        trEls.forEach(tr => {
+          const td = tr.children[visibleFrozenCount] as HTMLElement;
+          if (td) {
+            td.classList.add('opentfc-frozen-cell');
+            td.style.left = `${currentLeft}px`;
+          }
+        });
+
+        if (visibleFrozenCount === freezeCount - 1) {
+          th.classList.add('opentfc-frozen-last');
+          trEls.forEach(tr => {
+            const td = tr.children[visibleFrozenCount] as HTMLElement;
+            if (td) td.classList.add('opentfc-frozen-last');
+          });
+        }
+
+        currentLeft += width;
+        visibleFrozenCount++;
       }
     });
   }
@@ -247,14 +654,17 @@ export class TableFilterComponent {
   }
 
   private handleHeaderClick(columnIndex: number, isMulti: boolean) {
-    const existing = this.state.sorts.find(s => s.columnIndex === columnIndex);
-    if (!existing) {
+    const existingIdx = this.state.sorts.findIndex(s => s.columnIndex === columnIndex);
+    if (existingIdx === -1) {
       if (!isMulti) this.state.sorts = [];
       this.state.sorts.push({ columnIndex, direction: 'asc' });
-    } else if (existing.direction === 'asc') {
-      existing.direction = 'desc';
     } else {
-      this.state.sorts = this.state.sorts.filter(s => s.columnIndex !== columnIndex);
+      const existing = this.state.sorts[existingIdx];
+      if (existing.direction === 'asc') {
+        existing.direction = 'desc';
+      } else {
+        this.state.sorts.splice(existingIdx, 1);
+      }
     }
     this.updateSortHeaderIcons();
     this.applyFilters();
@@ -263,17 +673,23 @@ export class TableFilterComponent {
   private updateSortHeaderIcons() {
     const thEls = this.container.querySelectorAll('.opentfc-table-wrapper th');
     thEls.forEach((th, cIdx) => {
-      const sort = this.state.sorts.find(s => s.columnIndex === cIdx);
-      let icon = th.querySelector('.opentfc-sort-icon');
-      if (!icon) {
-        icon = document.createElement('span');
-        icon.className = 'opentfc-sort-icon';
-        th.appendChild(icon);
+      const sortIdx = this.state.sorts.findIndex(s => s.columnIndex === cIdx);
+      let badge = th.querySelector('.opentfc-sort-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'opentfc-sort-badge';
+        th.appendChild(badge);
       }
-      if (sort) {
-        icon.textContent = sort.direction === 'asc' ? ' ▲' : ' ▼';
+
+      if (sortIdx !== -1) {
+        const sort = this.state.sorts[sortIdx];
+        const arrow = sort.direction === 'asc' ? '▲' : '▼';
+        const priorityHtml = this.state.sorts.length > 1
+          ? `<span class="opentfc-sort-priority">${sortIdx + 1}</span>`
+          : '';
+        badge.innerHTML = `${arrow}${priorityHtml}`;
       } else {
-        icon.textContent = '';
+        badge.innerHTML = '';
       }
     });
   }
@@ -293,12 +709,23 @@ export class TableFilterComponent {
       const col = this.tableData.columns[colIdx];
       if (!col) continue;
 
-      if (typeof filterVal === 'string') {
-        // String or Select filter
+      if (Array.isArray(filterVal)) {
+        // Multi-select checkboxes
+        if (filterVal.length === 0) {
+          // Explicitly matched nothing
+          rows = [];
+        } else {
+          rows = rows.filter(r => {
+            const cellVal = String(r.cells[colIdx]?.val || '').trim();
+            return filterVal.includes(cellVal);
+          });
+        }
+      } else if (typeof filterVal === 'string') {
+        // Text search
         const match = filterVal.toLowerCase();
         rows = rows.filter(r => {
           const cellVal = String(r.cells[colIdx]?.val || '').toLowerCase();
-          return cellVal === match || cellVal.includes(match);
+          return cellVal.includes(match);
         });
       } else if (typeof filterVal === 'object' && filterVal !== null) {
         const range = filterVal as any;
@@ -306,7 +733,7 @@ export class TableFilterComponent {
           // Numeric range
           rows = rows.filter(r => {
             const raw = r.cells[colIdx]?.val;
-            const n = parseFloat(String(raw || '').replace(/[^0-9.-]/g, ''));
+            const n = parseFloat(String(raw || '').replace(/[^\d.-]/g, ''));
             if (isNaN(n)) return false;
             if (range.min !== undefined && n < range.min) return false;
             if (range.max !== undefined && n > range.max) return false;
@@ -342,8 +769,8 @@ export class TableFilterComponent {
 
           let cmp = 0;
           if (colType === 'NUMBER') {
-            const nA = parseFloat(String(valA).replace(/[^0-9.-]/g, '')) || 0;
-            const nB = parseFloat(String(valB).replace(/[^0-9.-]/g, '')) || 0;
+            const nA = parseFloat(String(valA).replace(/[^\d.-]/g, '')) || 0;
+            const nB = parseFloat(String(valB).replace(/[^\d.-]/g, '')) || 0;
             cmp = nA - nB;
           } else if (colType === 'DATE') {
             const dA = this.parseDate(String(valA))?.getTime() || 0;
@@ -364,6 +791,7 @@ export class TableFilterComponent {
     this.filteredRows = rows;
     this.renderTableBody();
     this.renderPagination();
+    this.applyFrozenColumns();
     this.notifyDataUpdated();
     this.syncStateToUrl();
   }
@@ -389,7 +817,7 @@ export class TableFilterComponent {
     if (!tbody) return;
 
     let displayRows = this.filteredRows;
-    if (this.state.pageSize !== 'all') {
+    if (this.config.enablePagination && this.state.pageSize !== 'all') {
       const size = this.state.pageSize as number;
       const start = (this.state.currentPage - 1) * size;
       displayRows = displayRows.slice(start, start + size);
@@ -407,7 +835,7 @@ export class TableFilterComponent {
       tbody.appendChild(tr);
     });
 
-    if (this.config.totalsRow) {
+    if (this.config.showTotals) {
       this.renderTotalsRow(tbody);
     }
   }
@@ -417,26 +845,35 @@ export class TableFilterComponent {
     tr.className = 'opentfc-totals-row';
 
     let firstVisible = true;
+    const rowCount = this.filteredRows.length;
+
+    // Russian pluralization helper
+    const rowWord = this.pluralizeRows(rowCount);
+
     this.tableData.columns.forEach((col, idx) => {
       if (this.state.hiddenColumns.includes(idx)) return;
 
       const td = document.createElement('td');
       if (firstVisible) {
-        td.innerHTML = `<strong>Итого (${this.filteredRows.length} строк):</strong>`;
+        td.innerHTML = `Итого: <strong>${rowCount} ${rowWord}</strong>`;
         firstVisible = false;
       } else if (col.type === 'NUMBER') {
         let sum = 0;
         let count = 0;
         this.filteredRows.forEach(r => {
           const raw = r.cells[idx]?.val;
-          const n = parseFloat(String(raw || '').replace(/[^0-9.-]/g, ''));
+          const n = parseFloat(String(raw || '').replace(/[^\d.-]/g, ''));
           if (!isNaN(n)) {
             sum += n;
             count++;
           }
         });
-        const avg = count > 0 ? (sum / count).toFixed(2) : '0';
-        td.innerHTML = `Σ: <strong>${sum.toLocaleString()}</strong><br><span style="font-size:11px;color:#6b778c;">Avg: ${avg}</span>`;
+
+        const suffix = col.currencySuffix || '';
+        const formattedSum = sum.toLocaleString('ru-RU') + suffix;
+        const avg = count > 0 ? (sum / count).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + suffix : '0';
+
+        td.innerHTML = `<span class="opentfc-totals-val">${formattedSum}</span><br><span class="opentfc-totals-sub">Ср: ${avg}</span>`;
       } else {
         td.textContent = '';
       }
@@ -445,9 +882,23 @@ export class TableFilterComponent {
     tbody.appendChild(tr);
   }
 
+  private pluralizeRows(n: number): string {
+    const absN = Math.abs(n) % 100;
+    const n1 = absN % 10;
+    if (absN > 10 && absN < 20) return 'строк';
+    if (n1 > 1 && n1 < 5) return 'строки';
+    if (n1 === 1) return 'строка';
+    return 'строк';
+  }
+
   private renderPagination() {
     const bar = this.container.querySelector('.opentfc-pagination-bar');
     if (!bar) return;
+
+    if (!this.config.enablePagination) {
+      bar.innerHTML = '';
+      return;
+    }
 
     const total = this.filteredRows.length;
     const size = this.state.pageSize === 'all' ? total : (this.state.pageSize as number);
@@ -455,19 +906,22 @@ export class TableFilterComponent {
 
     bar.innerHTML = `
       <div class="opentfc-pagination-info">
-        Всего строк: <strong>${total}</strong> (из ${this.tableData.totalRows})
+        Строк: <strong>${total}</strong> (из ${this.tableData.totalRows})
       </div>
       <div class="opentfc-pagination-controls">
-        <select class="opentfc-input opentfc-pg-size" style="width: auto; padding: 2px 6px;">
-          <option value="10" ${this.state.pageSize === 10 ? 'selected' : ''}>10</option>
-          <option value="25" ${this.state.pageSize === 25 ? 'selected' : ''}>25</option>
-          <option value="50" ${this.state.pageSize === 50 ? 'selected' : ''}>50</option>
-          <option value="100" ${this.state.pageSize === 100 ? 'selected' : ''}>100</option>
-          <option value="all" ${this.state.pageSize === 'all' ? 'selected' : ''}>Все</option>
-        </select>
-        <button class="opentfc-btn opentfc-pg-prev" ${this.state.currentPage <= 1 ? 'disabled' : ''}>&lt;</button>
-        <span>Стр. ${this.state.currentPage} из ${totalPages}</span>
-        <button class="opentfc-btn opentfc-pg-next" ${this.state.currentPage >= totalPages ? 'disabled' : ''}>&gt;</button>
+        <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
+          На стр.:
+          <select class="opentfc-input opentfc-pg-size" style="width: auto; padding: 2px 6px;">
+            <option value="10" ${this.state.pageSize === 10 ? 'selected' : ''}>10</option>
+            <option value="25" ${this.state.pageSize === 25 ? 'selected' : ''}>25</option>
+            <option value="50" ${this.state.pageSize === 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${this.state.pageSize === 100 ? 'selected' : ''}>100</option>
+            <option value="all" ${this.state.pageSize === 'all' ? 'selected' : ''}>Все</option>
+          </select>
+        </label>
+        <button class="opentfc-btn opentfc-btn-sm opentfc-pg-prev" ${this.state.currentPage <= 1 ? 'disabled' : ''}>&lt;</button>
+        <span style="font-size:12px;">${this.state.currentPage} / ${totalPages}</span>
+        <button class="opentfc-btn opentfc-btn-sm opentfc-pg-next" ${this.state.currentPage >= totalPages ? 'disabled' : ''}>&gt;</button>
       </div>
     `;
 
@@ -477,6 +931,7 @@ export class TableFilterComponent {
       this.state.currentPage = 1;
       this.renderTableBody();
       this.renderPagination();
+      this.applyFrozenColumns();
     });
 
     bar.querySelector('.opentfc-pg-prev')?.addEventListener('click', () => {
@@ -484,6 +939,7 @@ export class TableFilterComponent {
         this.state.currentPage--;
         this.renderTableBody();
         this.renderPagination();
+        this.applyFrozenColumns();
       }
     });
 
@@ -492,59 +948,9 @@ export class TableFilterComponent {
         this.state.currentPage++;
         this.renderTableBody();
         this.renderPagination();
+        this.applyFrozenColumns();
       }
     });
-  }
-
-  private toggleColumnsModal() {
-    let modal = this.container.querySelector('.opentfc-columns-modal') as HTMLElement;
-    if (modal) {
-      modal.remove();
-      return;
-    }
-
-    modal = document.createElement('div');
-    modal.className = 'opentfc-columns-modal';
-    modal.style.cssText = `
-      position: absolute; right: 20px; top: 50px; z-index: 100;
-      background: #ffffff; border: 1px solid #dfe1e6; border-radius: 4px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.15); padding: 12px; min-width: 200px;
-    `;
-
-    modal.innerHTML = `
-      <div style="font-weight:600; margin-bottom:8px;">Отображение колонок:</div>
-      <div class="opentfc-col-list" style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto;">
-        ${this.tableData.columns.map((c, idx) => `
-          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
-            <input type="checkbox" data-col-idx="${idx}" ${!this.state.hiddenColumns.includes(idx) ? 'checked' : ''} />
-            ${this.escapeHtml(c.name)}
-          </label>
-        `).join('')}
-      </div>
-      <div style="margin-top:10px; text-align:right;">
-        <button class="opentfc-btn opentfc-btn-primary opentfc-btn-close-col-modal">Закрыть</button>
-      </div>
-    `;
-
-    modal.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', (e: any) => {
-        const cIdx = parseInt(e.target.getAttribute('data-col-idx'), 10);
-        if (e.target.checked) {
-          this.state.hiddenColumns = this.state.hiddenColumns.filter(i => i !== cIdx);
-        } else {
-          if (!this.state.hiddenColumns.includes(cIdx)) {
-            this.state.hiddenColumns.push(cIdx);
-          }
-        }
-        this.renderTableHeaderVisibility();
-        this.renderTableBody();
-        this.renderColumnFilterControls();
-      });
-    });
-
-    modal.querySelector('.opentfc-btn-close-col-modal')?.addEventListener('click', () => modal.remove());
-    this.container.style.position = 'relative';
-    this.container.appendChild(modal);
   }
 
   private renderTableHeaderVisibility() {
@@ -554,18 +960,134 @@ export class TableFilterComponent {
     });
   }
 
-  private toggleProfilesModal() {
-    const pageId = (window as any).AJS?.params?.pageId || 0;
+  private loadProfiles() {
+    const pageId = (window as any).AJS?.params?.pageId || this.config.pageId || 0;
     const macroId = this.config.macroId;
+    if (!macroId) return;
 
-    const profileName = prompt('Введите имя профиля для сохранения текущих фильтров:', this.activeProfileName || 'Мой профиль');
-    if (!profileName) return;
+    fetch(`/rest/opentfc/1.0/profile/${pageId}/${macroId}`, {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(res => res.json())
+      .then((data: SavedProfile[]) => {
+        this.savedProfiles = Array.isArray(data) ? data : [];
+        this.renderProfilesMenu();
+      })
+      .catch(() => {
+        // Silent fail or anonymous user
+      });
+  }
+
+  private renderProfilesMenu() {
+    const listEl = this.container.querySelector('.opentfc-views-list');
+    if (!listEl) return;
+
+    if (this.savedProfiles.length === 0) {
+      listEl.innerHTML = `<div style="padding: 6px 12px; color: #6b778c; font-size: 12px;">Нет сохраненных видов</div>`;
+      return;
+    }
+
+    listEl.innerHTML = this.savedProfiles.map(p => `
+      <div class="opentfc-dropdown-item opentfc-view-item" data-profile-id="${p.id}">
+        <span>${this.activeProfileName === p.name ? '✓ ' : ''}${this.escapeHtml(p.name)}</span>
+        <span class="opentfc-view-delete" data-profile-id="${p.id}" title="Удалить вид" style="color: #6b778c; padding: 0 4px; font-weight: bold;">✕</span>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.opentfc-view-item').forEach(item => {
+      item.addEventListener('click', (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('opentfc-view-delete')) {
+          e.stopPropagation();
+          const pId = parseInt(target.getAttribute('data-profile-id') || '0', 10);
+          this.deleteProfile(pId);
+          return;
+        }
+
+        const pId = parseInt(item.getAttribute('data-profile-id') || '0', 10);
+        const profile = this.savedProfiles.find(p => p.id === pId);
+        if (profile) {
+          try {
+            const savedState = JSON.parse(profile.stateJson);
+            this.state.globalSearch = savedState.globalSearch || '';
+            this.state.columnFilters = savedState.columnFilters || {};
+            this.state.sorts = savedState.sorts || [];
+            this.state.hiddenColumns = savedState.hiddenColumns || [];
+            this.state.currentPage = 1;
+            this.activeProfileName = profile.name;
+
+            const searchInput = this.container.querySelector('.opentfc-search-input') as HTMLInputElement;
+            if (searchInput) searchInput.value = this.state.globalSearch;
+
+            this.renderTableHeaderVisibility();
+            this.renderColumnFilterControls();
+            this.updateSortHeaderIcons();
+            this.renderProfilesMenu();
+            this.applyFilters();
+            this.closeAllDropdowns();
+          } catch {}
+        }
+      });
+    });
+  }
+
+  private promptSaveProfile() {
+    this.closeAllDropdowns();
+
+    const existingOverlay = this.container.querySelector('.opentfc-modal-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'opentfc-modal-overlay';
+    overlay.innerHTML = `
+      <div class="opentfc-modal-box">
+        <h4 class="opentfc-modal-title">Сохранить вид</h4>
+        <p style="font-size: 13px; color: #42526e; margin: 0 0 10px 0;">Текущие фильтры, сортировка и видимость колонок сохранятся в Confluence для вашего профиля.</p>
+        <input type="text" class="opentfc-input opentfc-profile-name-input" placeholder="Имя вида (например: Только активные)" value="${this.escapeHtml(this.activeProfileName)}" />
+        <div class="opentfc-modal-actions">
+          <button class="opentfc-btn opentfc-btn-modal-cancel">Отмена</button>
+          <button class="opentfc-btn opentfc-btn-primary opentfc-btn-modal-save">Сохранить</button>
+        </div>
+      </div>
+    `;
+
+    const input = overlay.querySelector('.opentfc-profile-name-input') as HTMLInputElement;
+    const cancelBtn = overlay.querySelector('.opentfc-btn-modal-cancel');
+    const saveBtn = overlay.querySelector('.opentfc-btn-modal-save');
+
+    cancelBtn?.addEventListener('click', () => overlay.remove());
+    saveBtn?.addEventListener('click', () => {
+      const name = input.value.trim();
+      if (!name) {
+        input.focus();
+        return;
+      }
+      this.saveProfile(name, overlay);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveBtn?.dispatchEvent(new MouseEvent('click'));
+      if (e.key === 'Escape') overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+    setTimeout(() => input.focus(), 50);
+  }
+
+  private saveProfile(name: string, overlay: HTMLElement) {
+    const pageId = (window as any).AJS?.params?.pageId || this.config.pageId || 0;
+    const macroId = this.config.macroId;
 
     const payload = {
       pageId,
       macroId,
-      name: profileName,
-      state: JSON.stringify(this.state)
+      name,
+      stateJson: JSON.stringify({
+        globalSearch: this.state.globalSearch,
+        columnFilters: this.state.columnFilters,
+        sorts: this.state.sorts,
+        hiddenColumns: this.state.hiddenColumns
+      })
     };
 
     fetch(`/rest/opentfc/1.0/profile/${pageId}/${macroId}`, {
@@ -575,16 +1097,40 @@ export class TableFilterComponent {
         'X-Atlassian-Token': 'no-check'
       },
       body: JSON.stringify(payload)
-    }).then(res => {
-      if (res.ok) {
-        this.activeProfileName = profileName;
-        alert(`Профиль "${profileName}" успешно сохранен!`);
-      } else {
-        alert('Ошибка при сохранении профиля.');
-      }
-    }).catch(() => {
-      alert('Сетевая ошибка при сохранении профиля.');
-    });
+    })
+      .then(res => res.json())
+      .then((saved: SavedProfile) => {
+        this.activeProfileName = name;
+        const existingIdx = this.savedProfiles.findIndex(p => p.name === name);
+        if (existingIdx !== -1) {
+          this.savedProfiles[existingIdx] = saved;
+        } else {
+          this.savedProfiles.push(saved);
+        }
+        this.renderProfilesMenu();
+        overlay.remove();
+      })
+      .catch(() => {
+        alert('Не удалось сохранить вид. Убедитесь, что вы авторизованы в Confluence.');
+      });
+  }
+
+  private deleteProfile(profileId: number) {
+    if (!confirm('Удалить этот сохраненный вид?')) return;
+
+    fetch(`/rest/opentfc/1.0/profile/${profileId}`, {
+      method: 'DELETE',
+      headers: { 'X-Atlassian-Token': 'no-check' }
+    })
+      .then(res => {
+        if (res.ok) {
+          this.savedProfiles = this.savedProfiles.filter(p => p.id !== profileId);
+          this.renderProfilesMenu();
+        } else {
+          alert('Не удалось удалить вид.');
+        }
+      })
+      .catch(() => alert('Ошибка при удалении вида.'));
   }
 
   private resetFilters() {
@@ -592,15 +1138,14 @@ export class TableFilterComponent {
     this.state.columnFilters = {};
     this.state.sorts = [];
     this.state.currentPage = 1;
+    this.activeProfileName = '';
 
     const searchInput = this.container.querySelector('.opentfc-search-input') as HTMLInputElement;
     if (searchInput) searchInput.value = '';
 
-    this.container.querySelectorAll('.opentfc-col-select').forEach((sel: any) => {
-      sel.value = '';
-    });
-
+    this.renderColumnFilterControls();
     this.updateSortHeaderIcons();
+    this.renderProfilesMenu();
     this.applyFilters();
   }
 
@@ -636,6 +1181,7 @@ export class TableFilterComponent {
   }
 
   private exportCsv() {
+    this.closeAllDropdowns();
     const visibleCols = this.tableData.columns.filter((c, idx) => !this.state.hiddenColumns.includes(idx));
     const headers = visibleCols.map(c => `"${c.name.replace(/"/g, '""')}"`).join(',');
     const rows = this.filteredRows.map(r =>
@@ -650,7 +1196,7 @@ export class TableFilterComponent {
   }
 
   private exportXlsx() {
-    // Send filtered model to backend XLSX export endpoint
+    this.closeAllDropdowns();
     const visibleCols = this.tableData.columns.filter((c, idx) => !this.state.hiddenColumns.includes(idx));
     const payload = {
       id: this.config.macroId,
@@ -669,14 +1215,20 @@ export class TableFilterComponent {
       },
       body: JSON.stringify(payload)
     })
-      .then(res => res.blob())
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.blob();
+      })
       .then(blob => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `table-${this.config.macroId || 'export'}.xlsx`;
         link.click();
       })
-      .catch(() => alert('Ошибка при экспорте в Excel.'));
+      .catch(() => {
+        // Client-side CSV fallback if backend export is not reached
+        this.exportCsv();
+      });
   }
 
   private notifyDataUpdated() {

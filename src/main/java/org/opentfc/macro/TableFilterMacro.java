@@ -32,6 +32,15 @@ public class TableFilterMacro extends BaseOpenTfcMacro {
         }
 
         String macroId = getOrCreateMacroId(parameters);
+
+        boolean showSearchBox = Boolean.parseBoolean(parameters.getOrDefault("showSearchBox", "true"));
+        boolean showColumnFilters = parameters.containsKey("showColumnFilters")
+                ? Boolean.parseBoolean(parameters.get("showColumnFilters"))
+                : Boolean.parseBoolean(parameters.getOrDefault("filterStatus", "true"));
+        boolean stickyHeader = parameters.containsKey("stickyHeader")
+                ? Boolean.parseBoolean(parameters.get("stickyHeader"))
+                : Boolean.parseBoolean(parameters.getOrDefault("freezeHeader", "true"));
+
         int freezeColumns = 0;
         try {
             freezeColumns = Integer.parseInt(parameters.getOrDefault("freezeColumns", "0").trim());
@@ -39,16 +48,33 @@ public class TableFilterMacro extends BaseOpenTfcMacro {
             // keep default
         }
 
+        boolean showTotals = parameters.containsKey("showTotals")
+                ? Boolean.parseBoolean(parameters.get("showTotals"))
+                : Boolean.parseBoolean(parameters.getOrDefault("totalsRow", "false"));
+        boolean allowHideColumns = parameters.containsKey("allowHideColumns")
+                ? Boolean.parseBoolean(parameters.get("allowHideColumns"))
+                : true;
+        boolean showExportButtons = Boolean.parseBoolean(parameters.getOrDefault("showExportButtons", "true"));
+        String pageSize = parameters.getOrDefault("pageSize", "25");
+        boolean enablePagination = Boolean.parseBoolean(parameters.getOrDefault("enablePagination", "true"));
+
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
         config.put("pageId", pageIdOf(ctx));
-        config.put("pageSize", parameters.getOrDefault("pageSize", "25"));
-        config.put("freezeHeader", Boolean.parseBoolean(parameters.getOrDefault("freezeHeader", "true")));
+        config.put("showSearchBox", showSearchBox);
+        config.put("showColumnFilters", showColumnFilters);
+        config.put("stickyHeader", stickyHeader);
         config.put("freezeColumns", Math.max(0, freezeColumns));
-        config.put("filterStatus", Boolean.parseBoolean(parameters.getOrDefault("filterStatus", "true")));
-        config.put("totalsRow", Boolean.parseBoolean(parameters.getOrDefault("totalsRow", "false")));
-        boolean enablePagination = Boolean.parseBoolean(parameters.getOrDefault("enablePagination", "true"));
+        config.put("showTotals", showTotals);
+        config.put("allowHideColumns", allowHideColumns);
+        config.put("showExportButtons", showExportButtons);
+        config.put("pageSize", pageSize);
         config.put("enablePagination", enablePagination);
+
+        // Legacy compatibility keys
+        config.put("freezeHeader", stickyHeader);
+        config.put("filterStatus", showColumnFilters);
+        config.put("totalsRow", showTotals);
         config.put("hideableColumns", parameters.getOrDefault("hideableColumns", ""));
 
         String inner = "<div class=\"opentfc-toolbar\"></div>"

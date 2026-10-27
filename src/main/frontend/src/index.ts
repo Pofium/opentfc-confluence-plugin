@@ -5,6 +5,8 @@ import { PivotRenderer } from './pivot/pivot-renderer';
 import { TransformerRunner } from './transformer/transformer-runner';
 import { SpreadsheetManager } from './spreadsheet/spreadsheet-manager';
 
+declare const AJS: any;
+
 export class OpenTFCApp {
   public static init() {
     // 1. Table Filters
@@ -49,11 +51,30 @@ export class OpenTFCApp {
   }
 }
 
-// Auto-boot on DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => OpenTFCApp.init());
-} else {
+// Expose globally for Confluence runtime
+(window as any).OpenTFCApp = OpenTFCApp;
+(window as any).OpenTFC = OpenTFCApp;
+
+const boot = () => {
   OpenTFCApp.init();
+};
+
+// Confluence AJS integration
+if (typeof AJS !== 'undefined') {
+  if (typeof AJS.toInit === 'function') {
+    AJS.toInit(boot);
+  }
+  if (typeof AJS.bind === 'function') {
+    AJS.bind('page-show', boot);
+    AJS.bind('content-rendered', boot);
+  }
+}
+
+// Standard browser DOM integration
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
 }
 
 export default OpenTFCApp;
