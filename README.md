@@ -7,6 +7,9 @@
 
 **OpenTFC** — полнофункциональный аналог плагина *Table Filter, Charts & Spreadsheets for Confluence* (Stiltsoft) для Atlassian Confluence Data Center / Server (версии 8.5 LTS – 9.x), созданный на базе открытых и лицензионно-чистых компонентов (Apache-2.0 / MIT).
 
+👉 **[Подробное руководство пользователя по работе с макросами (USER_GUIDE.md)](USER_GUIDE.md)**
+👉 **[Руководство по установке и администрированию (INSTALL.md)](INSTALL.md)**
+
 ---
 
 ## 🚀 Ключевые возможности
