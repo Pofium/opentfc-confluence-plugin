@@ -23,4 +23,6 @@ Thumbs.db
 
 # Local portable toolchain (JDK, Maven, local repo, Confluence test instance)
 .tools/
+.codegraph/
+
 

@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Enables Atlassian Spring Scanner: wires @ComponentImport / @Component indexes generated at build time -->
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:atlassian-scanner="http://www.atlassian.com/schema/atlassian-scanner/2"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans
-        http://www.springframework.org/schema/beans/spring-beans.xsd
-        http://www.atlassian.com/schema/atlassian-scanner/2
-        http://www.atlassian.com/schema/atlassian-scanner/2/atlassian-scanner.xsd">
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <atlassian-scanner:scan-indexes/>
 </beans>

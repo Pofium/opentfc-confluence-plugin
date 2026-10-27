@@ -9,6 +9,7 @@ import com.atlassian.confluence.xhtml.api.XhtmlContent;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.ApplicationProperties;
 import com.atlassian.sal.api.UrlMode;
+import com.atlassian.sal.api.component.ComponentLocator;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -28,6 +29,12 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
     private final AttachmentManager attachmentManager;
     private final ApplicationProperties applicationProperties;
 
+    public AttachmentTableMacro() {
+        this(resolve(XhtmlContent.class),
+             resolve(AttachmentManager.class),
+             resolve(ApplicationProperties.class));
+    }
+
     public AttachmentTableMacro(AttachmentManager attachmentManager) {
         this(null, attachmentManager, null);
     }
@@ -38,6 +45,14 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
         super(xhtmlContent);
         this.attachmentManager = attachmentManager;
         this.applicationProperties = applicationProperties;
+    }
+
+    private static <T> T resolve(Class<T> type) {
+        try {
+            return ComponentLocator.getComponent(type);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     @Override

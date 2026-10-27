@@ -4,6 +4,7 @@ import com.atlassian.activeobjects.external.ActiveObjects;
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.component.ComponentLocator;
 import net.java.ao.Query;
 import org.opentfc.ao.FilterProfile;
 import org.opentfc.model.FilterProfileModel;
@@ -27,8 +28,20 @@ public class ProfileRestResource {
 
     private final ActiveObjects ao;
 
+    public ProfileRestResource() {
+        this(resolve(ActiveObjects.class));
+    }
+
     public ProfileRestResource(@ComponentImport ActiveObjects ao) {
         this.ao = ao;
+    }
+
+    private static <T> T resolve(Class<T> type) {
+        try {
+            return ComponentLocator.getComponent(type);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     @GET

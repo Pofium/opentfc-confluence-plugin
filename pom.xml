@@ -241,14 +241,14 @@
                         <Export-Package/>
                         <Import-Package>
                             com.atlassian.confluence.*;resolution:="optional",
-                            com.atlassian.activeobjects.*,
-                            com.atlassian.sal.api.*,
+                            com.atlassian.activeobjects.*;resolution:="optional",
+                            com.atlassian.sal.api.*;resolution:="optional",
                             com.atlassian.plugins.rest.common.*;resolution:="optional",
-                            net.java.ao.*,
-                            javax.ws.rs.*,
-                            javax.servlet.*,
-                            javax.inject.*,
-                            org.slf4j.*,
+                            net.java.ao.*;resolution:="optional",
+                            javax.ws.rs.*;resolution:="optional",
+                            javax.servlet.*;resolution:="optional",
+                            javax.inject.*;resolution:="optional",
+                            org.slf4j.*;resolution:="optional",
                             org.springframework.*;resolution:="optional",
                             *;resolution:="optional"
                         </Import-Package>

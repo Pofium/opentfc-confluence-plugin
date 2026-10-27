@@ -5,6 +5,7 @@ import com.atlassian.confluence.pages.AttachmentManager;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.component.ComponentLocator;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import org.opentfc.model.TableModel;
 import org.opentfc.service.DataSourceResolver;
@@ -30,6 +31,12 @@ public class SourceRestResource {
     private final OpenTfcSettings settings;
     private final DataSourceResolver resolver = new DataSourceResolver();
 
+    public SourceRestResource() {
+        this(resolve(PageManager.class),
+             resolve(AttachmentManager.class),
+             resolve(PluginSettingsFactory.class));
+    }
+
     public SourceRestResource(PageManager pageManager, AttachmentManager attachmentManager) {
         this(pageManager, attachmentManager, null);
     }
@@ -40,6 +47,14 @@ public class SourceRestResource {
         this.pageManager = pageManager;
         this.attachmentManager = attachmentManager;
         this.settings = pluginSettingsFactory != null ? new OpenTfcSettings(pluginSettingsFactory) : null;
+    }
+
+    private static <T> T resolve(Class<T> type) {
+        try {
+            return ComponentLocator.getComponent(type);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     @GET
