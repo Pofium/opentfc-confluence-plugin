@@ -4,6 +4,17 @@ All notable changes to OpenTFC are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-10-28
+
+### Fixed
+- **Журналы были скрыты на инстансе с неработающим SAL**: каталог logs теперь ищется
+  двумя путями — SAL ApplicationProperties и системное свойство `confluence.home`
+  (NIO + normalize, только существующий каталог "logs"). На странице показывается,
+  откуда взят каталог и текст ошибки SAL.
+- **Авторизация при мёртвом SAL**: доступ по наличию сессионной cookie Seraph
+  (аноним — 403). Ранее SAL-down означал либо полный запрет (журналы недостижимы),
+  либо публичный доступ.
+
 ## [1.0.3] - 2026-10-28
 
 ### Added

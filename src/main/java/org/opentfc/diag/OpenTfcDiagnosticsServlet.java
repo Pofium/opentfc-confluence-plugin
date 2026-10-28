@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +29,10 @@ import java.util.List;
  */
 public class OpenTfcDiagnosticsServlet extends HttpServlet {
 
-    static final String VERSION = "1.0.3";
+    static final String VERSION = "1.0.4";
+
+    private static volatile String salError = "";
+    private static volatile String homeSource = "none";
 
     // ===== Файлы журналов сервера =====
     // Читаются только файлы из фактического листинга каталога <home>/logs;
@@ -37,21 +41,33 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
     private static File logsDir() {
         try {
             ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
-            File home = null;
             if (props != null) {
+                File home = null;
                 java.nio.file.Path local = props.getLocalHomeDirectory() != null
                         ? props.getLocalHomeDirectory().orElse(null) : null;
-                home = local != null ? local.toFile()
-                        : (props.getHomeDirectory() != null ? props.getHomeDirectory() : null);
+                if (local != null) {
+                    home = local.toFile();
+                } else if (props.getHomeDirectory() != null) {
+                    home = props.getHomeDirectory();
+                }
+                if (home != null) {
+                    File dir = new File(home, "logs");
+                    if (dir.isDirectory()) {
+                        homeSource = "sal";
+                        return dir;
+                    }
+                }
             }
-            if (home == null) {
-                return null;
-            }
-            File dir = new File(home, "logs");
-            return dir.isDirectory() ? dir : null;
         } catch (Throwable e) {
-            return null;
+            salError = e.getClass().getName() + ": " + e.getMessage();
         }
+        Path probe = HomeDirProbe.logsDirFromSysProp();
+        if (probe != null) {
+            homeSource = "sysprop";
+            return probe.toFile();
+        }
+        homeSource = "none";
+        return null;
     }
 
     /** {имя, размер КБ, дата изменения, хвост} самых свежих журналов. Максимум 4 файла, хвост 300 КБ. */
@@ -176,7 +192,14 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
     private boolean hasAccess(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         UserManager userManager = userManager();
         if (userManager == null) {
-            return true; // SAL wiring failed: degraded mode, page still available (read-only diagnostics)
+            // SAL недоступен: пустим только с сессионной cookie Seraph (мягкая
+            // проверка входа), иначе страница с журналами будет публичной.
+            if (hasSessionCookie(req)) {
+                return true;
+            }
+            resp.sendError(HttpServletResponse.SC_FORBIDDEN,
+                    "SAL недоступен и сессионная cookie не найдена — войдите в Confluence и повторите");
+            return false;
         }
         try {
             String username = userManager.getRemoteUsername();
@@ -184,9 +207,22 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
                 return true;
             }
         } catch (Throwable ignored) {
-            return true; // SAL present but broken: degraded mode
+            return hasSessionCookie(req); // SAL есть, но сломан — мягкая проверка
         }
         resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Login required for OpenTFC diagnostics");
+        return false;
+    }
+
+    private static boolean hasSessionCookie(HttpServletRequest req) {
+        javax.servlet.http.Cookie[] cookies = req.getCookies();
+        if (cookies == null) {
+            return false;
+        }
+        for (javax.servlet.http.Cookie c : cookies) {
+            if ("seraph.confluence".equals(c.getName()) && c.getValue() != null && !c.getValue().isEmpty()) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -266,7 +302,9 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
          .append("<td class=\"k\">Записей / вытеснено</td><td>").append(entries.size())
          .append(" / ").append(OpenTfcLogStore.droppedCount()).append("</td></tr>")
          .append("<tr><td class=\"k\">Версия Confluence</td><td>").append(escape(confluenceVersion())).append("</td>")
-         .append("<td class=\"k\">SAL UserManager</td><td>").append(userManager() != null ? "подключён" : "<span class=\"bad\">не подключён (degraded mode)</span>").append("</td></tr>")
+         .append("<tr><td class=\"k\">SAL UserManager</td><td colspan=\"3\">")
+         .append(userManager() != null ? "подключён" : "<span class=\"bad\">недоступен: " + escape(salError) + "</span> — журналы ищутся через confluence.home (источник: " + escape(homeSource) + ")")
+         .append("</td></tr>")
          .append("</table>");
 
         // ===== Файлы журналов сервера (причины отказов активации — здесь) =====

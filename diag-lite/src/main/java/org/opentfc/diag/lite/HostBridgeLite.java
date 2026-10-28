@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -32,6 +33,19 @@ final class HostBridgeLite {
 
     static final String OPEN_TFC_KEY = "org.opentfc.confluence.plugin";
 
+    private static volatile String salError = "";
+    private static volatile String homeSource = "none";
+
+    /** Текст последней ошибки SAL (для строки статуса). */
+    static String salErrorText() {
+        return salError;
+    }
+
+    /** Откуда взят каталог журналов: "sal" | "sysprop" | "none". */
+    static String homeSource() {
+        return homeSource;
+    }
+
     private HostBridgeLite() {
     }
 
@@ -40,11 +54,13 @@ final class HostBridgeLite {
         try {
             UserManager um = ComponentLocator.getComponent(UserManager.class);
             if (um == null) {
+                salError = "ComponentLocator вернул null для UserManager";
                 return "!sal";
             }
             String name = um.getRemoteUsername();
             return (name == null || name.isEmpty()) ? null : name;
         } catch (Throwable e) {
+            salError = e.getClass().getName() + ": " + e.getMessage();
             return "!sal";
         }
     }
@@ -111,25 +127,33 @@ final class HostBridgeLite {
     private static File logsDir() {
         try {
             ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
-            if (props == null) {
-                return null;
+            if (props != null) {
+                File home = null;
+                java.nio.file.Path local = props.getLocalHomeDirectory() != null
+                        ? props.getLocalHomeDirectory().orElse(null) : null;
+                if (local != null) {
+                    home = local.toFile();
+                } else if (props.getHomeDirectory() != null) {
+                    home = props.getHomeDirectory();
+                }
+                if (home != null) {
+                    File dir = new File(home, "logs");
+                    if (dir.isDirectory()) {
+                        homeSource = "sal";
+                        return dir;
+                    }
+                }
             }
-            File home = null;
-            java.nio.file.Path local = props.getLocalHomeDirectory() != null
-                    ? props.getLocalHomeDirectory().orElse(null) : null;
-            if (local != null) {
-                home = local.toFile();
-            } else if (props.getHomeDirectory() != null) {
-                home = props.getHomeDirectory();
-            }
-            if (home == null) {
-                return null;
-            }
-            File dir = new File(home, "logs");
-            return dir.isDirectory() ? dir : null;
         } catch (Throwable e) {
-            return null;
+            salError = e.getClass().getName() + ": " + e.getMessage();
         }
+        Path probe = HomeDirProbe.logsDirFromSysProp();
+        if (probe != null) {
+            homeSource = "sysprop";
+            return probe.toFile();
+        }
+        homeSource = "none";
+        return null;
     }
 
     /** Фактическое содержимое каталога logs (новые сверху, максимум limit). */
