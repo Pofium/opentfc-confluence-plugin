@@ -1,5 +1,6 @@
 package org.opentfc.diag;
 
+import com.atlassian.sal.api.ApplicationProperties;
 import com.atlassian.sal.api.component.ComponentLocator;
 import com.atlassian.sal.api.user.UserManager;
 
@@ -7,10 +8,15 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -22,7 +28,95 @@ import java.util.List;
  */
 public class OpenTfcDiagnosticsServlet extends HttpServlet {
 
-    static final String VERSION = "1.0.2";
+    static final String VERSION = "1.0.3";
+
+    // ===== Файлы журналов сервера =====
+    // Читаются только файлы из фактического листинга каталога <home>/logs;
+    // параметры запроса в файловые операции не передаются.
+
+    private static File logsDir() {
+        try {
+            ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
+            File home = null;
+            if (props != null) {
+                java.nio.file.Path local = props.getLocalHomeDirectory() != null
+                        ? props.getLocalHomeDirectory().orElse(null) : null;
+                home = local != null ? local.toFile()
+                        : (props.getHomeDirectory() != null ? props.getHomeDirectory() : null);
+            }
+            if (home == null) {
+                return null;
+            }
+            File dir = new File(home, "logs");
+            return dir.isDirectory() ? dir : null;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** {имя, размер КБ, дата изменения, хвост} самых свежих журналов. Максимум 4 файла, хвост 300 КБ. */
+    private static List<String[]> journalFiles() {
+        List<String[]> out = new ArrayList<>();
+        try {
+            File dir = logsDir();
+            if (dir == null) {
+                return out;
+            }
+            File[] files = dir.listFiles((d, n) -> n.matches("[A-Za-z0-9._ -]{1,80}\\.log(\\.[0-9]+)?"));
+            if (files == null) {
+                return out;
+            }
+            Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+            int count = 0;
+            for (File f : files) {
+                String tail;
+                try {
+                    tail = readTail(f, 300_000);
+                } catch (Throwable e) {
+                    tail = "ошибка чтения: " + e;
+                }
+                out.add(new String[]{f.getName(), String.valueOf(f.length() / 1024),
+                        new java.util.Date(f.lastModified()).toString(), tail});
+                if (++count >= 4) {
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+            // пустой список + статус
+        }
+        return out;
+    }
+
+    /** Хвост самого свежего журнала (для скачивания), или null если журналов нет. */
+    private static String mainJournalTail(int maxBytes) {
+        try {
+            File dir = logsDir();
+            File[] files = dir != null ? dir.listFiles((d, n) -> n.matches("[A-Za-z0-9._ -]{1,80}\\.log(\\.[0-9]+)?")) : null;
+            if (files == null || files.length == 0) {
+                return null;
+            }
+            Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+            return readTail(files[0], maxBytes);
+        } catch (Throwable e) {
+            return "ошибка чтения: " + e;
+        }
+    }
+
+    private static String readTail(File f, int maxBytes) throws IOException {
+        long len = f.length();
+        long start = Math.max(0, len - maxBytes);
+        byte[] buf = new byte[(int) (len - start)];
+        try (RandomAccessFile raf = new RandomAccessFile(f, "r")) {
+            raf.seek(start);
+            raf.readFully(buf);
+        }
+        String s = new String(buf, StandardCharsets.UTF_8);
+        if (start > 0) {
+            int nl = s.indexOf('\n');
+            s = "(…обрезано начало…)\n" + (nl >= 0 ? s.substring(nl + 1) : s);
+        }
+        return s;
+    }
 
     /** Resolved lazily via SAL: an OSGi service reference in the constructor would
      * stall plugin activation if the SAL service were unavailable. */
@@ -48,6 +142,19 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
         }
         HostCapture.tryInstall(); // self-heal if capture missed earlier install points
 
+        // Скачивание хвоста самого свежего журнала: имя файла фиксировано,
+        // параметрами запроса не управляется.
+        if ("1".equals(req.getParameter("dl"))) {
+            String tail = mainJournalTail(5_000_000);
+            if (tail == null) {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Журналы не найдены");
+                return;
+            }
+            resp.setContentType("text/plain; charset=utf-8");
+            resp.setHeader("Content-Disposition", "attachment; filename=\"confluence-journal-tail.log\"");
+            resp.getWriter().write(tail);
+            return;
+        }
         if ("txt".equals(req.getParameter("format"))) {
             sendTextDownload(resp);
             return;
@@ -144,6 +251,7 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
          .append("Здесь: события самого OpenTFC, события plugin framework (ENABLED/DISABLED всех приложений) и перехваченные WARN/ERROR ")
          .append("общего лога Confluence. Если OpenTFC отключить/удалить — страница пропадёт. ")
          .append("UPM (Управление приложениями): <a href=\"/plugins/servlet/upm\">/plugins/servlet/upm</a>. ")
+         .append("Компаньон при полном отказе активации: <a href=\"/plugins/servlet/diag-lite\">/plugins/servlet/diag-lite</a>. ")
          .append("Ссылки-пробы ядра: <a href=\"/login.action\">/login.action</a>, <a href=\"/status\">/status</a>.</div>");
 
         String capState = OpenTfcLogStore.isHostCaptureInstalled()
@@ -160,6 +268,19 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
          .append("<tr><td class=\"k\">Версия Confluence</td><td>").append(escape(confluenceVersion())).append("</td>")
          .append("<td class=\"k\">SAL UserManager</td><td>").append(userManager() != null ? "подключён" : "<span class=\"bad\">не подключён (degraded mode)</span>").append("</td></tr>")
          .append("</table>");
+
+        // ===== Файлы журналов сервера (причины отказов активации — здесь) =====
+        h.append("<h2 style=\"font-size:15px;margin:18px 0 8px\">Журналы сервера (&lt;home&gt;/logs) ")
+         .append("<a style=\"font-size:12px;font-weight:400\" href=\"?dl=1\">[скачать хвост самого свежего]</a></h2>");
+        List<String[]> journals = journalFiles();
+        if (journals.isEmpty()) {
+            h.append("<p><i>каталог logs не найден или пуст</i></p>");
+        }
+        for (String[] j : journals) {
+            h.append("<details><summary>").append(escape(j[0])).append(" — ").append(j[1]).append(" КБ, изменён ")
+             .append(escape(j[2])).append("</summary><pre style=\"max-height:520px;overflow:auto;font-size:11px;white-space:pre-wrap;word-break:break-word;margin:4px 0 10px\">")
+             .append(escape(j[3])).append("</pre></details>");
+        }
 
         h.append("<p>Фильтр: ");
         for (String[] opt : new String[][]{{"ALL", "Все"}, {"INFO", "INFO+"}, {"WARN", "WARN+"}, {"ERROR", "Только ERROR"}}) {

@@ -3,7 +3,7 @@
 
     <plugin-info>
         <description>Диагностика без доступа к серверу: статус приложений (включая OpenTFC), список отключённых плагинов (каскад), перехват WARN/ERROR host-лога. Страница: /plugins/servlet/diag-lite</description>
-        <version>1.0.2</version>
+        <version>1.0.3</version>
         <vendor name="OpenTFC Project" url="https://github.com/Pofium/opentfc-confluence-plugin" />
     </plugin-info>
 

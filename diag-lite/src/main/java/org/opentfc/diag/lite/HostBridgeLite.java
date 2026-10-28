@@ -7,16 +7,26 @@ import com.atlassian.plugin.PluginAccessor;
 import com.atlassian.plugin.PluginState;
 import com.atlassian.plugin.event.events.PluginDisabledEvent;
 import com.atlassian.plugin.event.events.PluginEnabledEvent;
+import com.atlassian.sal.api.ApplicationProperties;
 import com.atlassian.sal.api.component.ComponentLocator;
 import com.atlassian.sal.api.user.UserManager;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 /**
- * All host API access of Diag Lite happens here, guarded: a missing/unexported host
- * class only fails the individual call (reported on the page), never the servlet.
- * The servlet itself compiles against nothing but servlet-api and this package.
+ * Все обращения к хост-API Diag Lite — здесь, под guard'ом: недоступный/неэкспортируемый
+ * класс хоста роняет только конкретный вызов (виден на странице), но не плагин.
+ *
+ * Файлы журналов читаются ТОЛЬКО через перечисление фактического содержимого каталога
+ * logs (имя запрошенного файла сверяется equals'ом со списком) — путь из пользовательского
+ * ввода нигде не конструируется.
  */
 final class HostBridgeLite {
 
@@ -25,17 +35,17 @@ final class HostBridgeLite {
     private HostBridgeLite() {
     }
 
-    /** "username", "" (SAL недоступен — degraded), null (аноним). */
+    /** "username" (авторизован), null (аноним; в некоторых версиях SAL аноним — ""), "!sal" (SAL недоступен). */
     static String currentUsername() {
         try {
             UserManager um = ComponentLocator.getComponent(UserManager.class);
             if (um == null) {
-                return "";
+                return "!sal";
             }
             String name = um.getRemoteUsername();
-            return name == null ? null : name;
+            return (name == null || name.isEmpty()) ? null : name;
         } catch (Throwable e) {
-            return "";
+            return "!sal";
         }
     }
 
@@ -53,7 +63,7 @@ final class HostBridgeLite {
             String version = p.getPluginInformation().getVersion();
             return p.getPluginState() == PluginState.ENABLED
                     ? "ВКЛЮЧЁН, версия " + version
-                    : "ЕСТЬ, состояние " + p.getPluginState() + " (версия " + version + ") — причина в логах ниже";
+                    : "ЕСТЬ, состояние " + p.getPluginState() + " (версия " + version + ") — причина в журналах ниже";
         } catch (Throwable e) {
             return "ошибка: " + e;
         }
@@ -77,10 +87,131 @@ final class HostBridgeLite {
                 }
             }
         } catch (Throwable ignored) {
-            // reported via empty list + status
+            // пустой список + статус
         }
         return out;
     }
+
+    // ===== Файлы журналов =====
+
+    static final class JournalEntry {
+        final String name;
+        final long sizeKb;
+        final String modified;
+        final String tail;
+
+        JournalEntry(String name, long sizeKb, String modified, String tail) {
+            this.name = name;
+            this.sizeKb = sizeKb;
+            this.modified = modified;
+            this.tail = tail;
+        }
+    }
+
+    private static File logsDir() {
+        try {
+            ApplicationProperties props = ComponentLocator.getComponent(ApplicationProperties.class);
+            if (props == null) {
+                return null;
+            }
+            File home = null;
+            java.nio.file.Path local = props.getLocalHomeDirectory() != null
+                    ? props.getLocalHomeDirectory().orElse(null) : null;
+            if (local != null) {
+                home = local.toFile();
+            } else if (props.getHomeDirectory() != null) {
+                home = props.getHomeDirectory();
+            }
+            if (home == null) {
+                return null;
+            }
+            File dir = new File(home, "logs");
+            return dir.isDirectory() ? dir : null;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** Фактическое содержимое каталога logs (новые сверху, максимум limit). */
+    private static List<File> listLogs(int limit) {
+        List<File> out = new ArrayList<>();
+        try {
+            File dir = logsDir();
+            if (dir == null) {
+                return out;
+            }
+            File[] files = dir.listFiles((d, n) -> n.matches("[A-Za-z0-9._ -]{1,80}\\.log(\\.[0-9]+)?"));
+            if (files == null) {
+                return out;
+            }
+            Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+            for (File f : files) {
+                out.add(f);
+                if (out.size() >= limit) {
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+            // пусто
+        }
+        return out;
+    }
+
+    /** Имя самого свежего журнала (для скачивания), или null. */
+    static String mainJournalName() {
+        List<File> files = listLogs(1);
+        return files.isEmpty() ? null : files.get(0).getName();
+    }
+
+    /**
+     * Хвосты журналов для страницы. Читаются только файлы из фактического листинга
+     * каталога logs (fresh listing); пользовательский ввод в пути не участвует.
+     */
+    static List<JournalEntry> journalTails(int maxFiles, int tailBytesPerFile) {
+        List<JournalEntry> out = new ArrayList<>();
+        for (File f : listLogs(maxFiles)) {
+            String tail = "не удалось прочитать";
+            try {
+                tail = readTail(f, tailBytesPerFile);
+            } catch (Throwable e) {
+                tail = "ошибка чтения: " + e;
+            }
+            out.add(new JournalEntry(f.getName(), f.length() / 1024,
+                    new java.util.Date(f.lastModified()).toString(), tail));
+        }
+        return out;
+    }
+
+    /** Хвост самого свежего журнала (для скачивания), или null если журналов нет. */
+    static String mainJournalTail(int maxBytes) {
+        List<File> files = listLogs(1);
+        if (files.isEmpty()) {
+            return null;
+        }
+        try {
+            return readTail(files.get(0), maxBytes);
+        } catch (Throwable e) {
+            return "ошибка чтения: " + e;
+        }
+    }
+
+    private static String readTail(File f, int maxBytes) throws IOException {
+        long len = f.length();
+        long start = Math.max(0, len - maxBytes);
+        byte[] buf = new byte[(int) (len - start)];
+        try (RandomAccessFile raf = new RandomAccessFile(f, "r")) {
+            raf.seek(start);
+            raf.readFully(buf);
+        }
+        String s = new String(buf, StandardCharsets.UTF_8);
+        if (start > 0) {
+            int nl = s.indexOf('\n');
+            s = "(…обрезано начало…)\n" + (nl >= 0 ? s.substring(nl + 1) : s);
+        }
+        return s;
+    }
+
+    // ===== События plugin framework =====
 
     private static final Object EVENT_HOOK_LOCK = new Object();
     private static boolean eventsRegistered = false;
