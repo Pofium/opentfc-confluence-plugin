@@ -55,7 +55,7 @@ public class RestResourcesTest {
         assertEquals(200, response.getStatus());
 
         Map<String, Object> config = (Map<String, Object>) response.getEntity();
-        assertEquals("1.0.1", config.get("version"));
+        assertEquals("1.0.2", config.get("version"));
         assertEquals(10, config.get("sqlTimeoutSeconds"));
         assertEquals(50000, config.get("maxResultRows"));
         assertEquals(10, config.get("maxFileSizeMb"));

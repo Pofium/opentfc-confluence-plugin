@@ -3,7 +3,7 @@
 
     <plugin-info>
         <description>Полнофункциональный аналог плагина Table Filter, Charts and Spreadsheets для Confluence DC (8.5 - 9.x)</description>
-        <version>1.0.1</version>
+        <version>1.0.2</version>
         <vendor name="OpenTFC Project" url="https://github.com/opentfc" />
         <param name="plugin-icon">images/plugin-icon.png</param>
         <param name="plugin-logo">images/plugin-logo.png</param>

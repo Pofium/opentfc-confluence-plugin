@@ -6,7 +6,7 @@
 
     <groupId>org.opentfc</groupId>
     <artifactId>opentfc-confluence-plugin</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <packaging>atlassian-plugin</packaging>
 
     <name>OpenTFC - Open Table Filter, Charts &amp; Spreadsheets</name>
@@ -262,6 +262,7 @@
                             com.atlassian.activeobjects.*,
                             com.atlassian.sal.api.*,
                             com.atlassian.event.api,
+                            com.atlassian.plugin.osgi.*;resolution:="optional",
                             com.atlassian.plugin.*,
                             com.atlassian.plugin.spring.scanner.*,
                             com.atlassian.plugins.rest.common.*,

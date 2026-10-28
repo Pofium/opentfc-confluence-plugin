@@ -1,6 +1,6 @@
 package org.opentfc.diag;
 
-import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
+import com.atlassian.sal.api.component.ComponentLocator;
 import com.atlassian.sal.api.user.UserManager;
 
 import javax.servlet.ServletException;
@@ -22,16 +22,16 @@ import java.util.List;
  */
 public class OpenTfcDiagnosticsServlet extends HttpServlet {
 
-    static final String VERSION = "1.0.1";
+    static final String VERSION = "1.0.2";
 
-    private final UserManager userManager; // may be null if SAL wiring failed
-
-    public OpenTfcDiagnosticsServlet() {
-        this(null);
-    }
-
-    public OpenTfcDiagnosticsServlet(@ComponentImport UserManager userManager) {
-        this.userManager = userManager;
+    /** Resolved lazily via SAL: an OSGi service reference in the constructor would
+     * stall plugin activation if the SAL service were unavailable. */
+    private UserManager userManager() {
+        try {
+            return ComponentLocator.getComponent(UserManager.class);
+        } catch (Throwable e) {
+            return null;
+        }
     }
 
     @Override
@@ -67,6 +67,7 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
     }
 
     private boolean hasAccess(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        UserManager userManager = userManager();
         if (userManager == null) {
             return true; // SAL wiring failed: degraded mode, page still available (read-only diagnostics)
         }
@@ -157,7 +158,7 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
          .append("<td class=\"k\">Записей / вытеснено</td><td>").append(entries.size())
          .append(" / ").append(OpenTfcLogStore.droppedCount()).append("</td></tr>")
          .append("<tr><td class=\"k\">Версия Confluence</td><td>").append(escape(confluenceVersion())).append("</td>")
-         .append("<td class=\"k\">SAL UserManager</td><td>").append(userManager != null ? "подключён" : "<span class=\"bad\">не подключён (degraded mode)</span>").append("</td></tr>")
+         .append("<td class=\"k\">SAL UserManager</td><td>").append(userManager() != null ? "подключён" : "<span class=\"bad\">не подключён (degraded mode)</span>").append("</td></tr>")
          .append("</table>");
 
         h.append("<p>Фильтр: ");

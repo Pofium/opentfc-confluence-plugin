@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<atlassian-plugin key="org.opentfc.diag.lite" name="OpenTFC Diag Lite" plugins-version="2">
+
+    <plugin-info>
+        <description>Диагностика без доступа к серверу: статус приложений (включая OpenTFC), список отключённых плагинов (каскад), перехват WARN/ERROR host-лога. Страница: /plugins/servlet/diag-lite</description>
+        <version>1.0.2</version>
+        <vendor name="OpenTFC Project" url="https://github.com/Pofium/opentfc-confluence-plugin" />
+    </plugin-info>
+
+    <!-- Единственный модуль: plain servlet без Spring. Без макросов/AO/REST —
+         минимальная поверхность отказа. -->
+    <servlet key="diag-lite-servlet" name="OpenTFC Diag Lite Servlet" class="org.opentfc.diag.lite.DiagLiteServlet">
+        <description>Страница диагностики для случаев, когда основной плагин не активируется</description>
+        <url-pattern>/diag-lite</url-pattern>
+    </servlet>
+
+</atlassian-plugin>

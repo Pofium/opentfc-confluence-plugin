@@ -21,7 +21,7 @@ public class ConfigRestResource {
     @AnonymousAllowed
     public Response getConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("version", "1.0.1");
+        config.put("version", "1.0.2");
         config.put("sqlTimeoutSeconds", 10);
         config.put("maxResultRows", 50000);
         config.put("maxFileSizeMb", 10);
