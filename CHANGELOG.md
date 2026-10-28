@@ -4,9 +4,16 @@ All notable changes to OpenTFC are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.1] - 2026-10-28
 
 ### Added
+- **Браузерная диагностика** `/plugins/servlet/opentfc/diagnostics`: in-memory ring buffer (2000 записей),
+  события plugin framework (ENABLED/DISABLED всех приложений — виден каскад отключений),
+  перехват WARN/ERROR host-лога через log4j2-аппендер (guarded, опционально),
+  события OpenTFC (Spring-контекст, первый рендер макросов, SQL-запросы, ошибки источников REST),
+  фильтры уровней, авто-обновление, скачивание `.log`, очистка. Страница — чистый HTML сервлета
+  без velocity-декораторов/AUI, доступна даже на инстансе со сломанным рендерингом.
+- `PluginLifecycleLogger` — Spring-bean, публикующий события plugin framework в буфер.
 - Unit test suite for backend services (109 tests, JaCoCo line coverage 94 %, branch 78 %):
   - `TableExtractorImpl`: headerless tables, column type inference (number/date/select),
     HTML entities, missing-cell padding.
@@ -28,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LICENSE` (Apache-2.0), `CHANGELOG.md`.
 
 ### Fixed
+- **Причина поломки инстанса при установке v1.0.0 (инцидент 27–28.10.2026)**:
+  - `atlassian-plugin.xml`: web-resource больше не инжектится в контекст `atl.general`
+    (1 МБ JS/CSS грузился на каждой странице инстанса, ломая интерактив при ошибке);
+  - удалены конфликтующие алиасы макросов без префикса `open-*` (`table-filter`,
+    `chart`, `pivot`, `csv`, `json`, `chart-from-table`, `pivot-table`, `table-transformer`,
+    `table-spreadsheet`, `attachment-table` и др.) — дубли со встроенным Chart-макросом
+    Confluence и макросами сторонних приложений срывали активацию;
+  - `pom.xml`: явные обязательные `Import-Package` вместо `*;resolution:="optional"` для
+    хостовых API (fail-fast на ошибках wiring); optional оставлены только для
+    `org.springframework.*` и `org.apache.logging.log4j.*` (гардируются в рантайме).
 - i18n: missing `opentfc.admin.title` key referenced by the plugin descriptor's admin web-item.
 - SQL sandbox: queries containing keywords inside string literals, comments or quoted
   identifiers are no longer falsely rejected (e.g. `SELECT 'DROP' AS msg FROM T1`).

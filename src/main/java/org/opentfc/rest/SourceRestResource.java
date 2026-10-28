@@ -7,6 +7,7 @@ import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.atlassian.sal.api.component.ComponentLocator;
 import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
+import org.opentfc.diag.OpenTfcLogStore;
 import org.opentfc.model.TableModel;
 import org.opentfc.service.DataSourceResolver;
 import org.opentfc.service.OpenTfcSettings;
@@ -87,6 +88,8 @@ public class SourceRestResource {
             }
 
             if (dataText == null) {
+                OpenTfcLogStore.warn("rest-source", "Source not found: page=" + pageId + " attachment="
+                        + attachmentName + " url=" + url);
                 return Response.status(Response.Status.NOT_FOUND)
                         .entity("Source data stream could not be opened").build();
             }
@@ -102,6 +105,7 @@ public class SourceRestResource {
             return Response.ok(model).build();
         } catch (Exception e) {
             log.error("Failed to retrieve source data: {}", e.getMessage(), e);
+            OpenTfcLogStore.error("rest-source", "Source load failed: page=" + pageId + " type=" + type, e);
             return Response.serverError().entity("Error loading source: " + e.getMessage()).build();
         }
     }

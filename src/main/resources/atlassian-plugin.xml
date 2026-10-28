@@ -3,7 +3,7 @@
 
     <plugin-info>
         <description>Полнофункциональный аналог плагина Table Filter, Charts and Spreadsheets для Confluence DC (8.5 - 9.x)</description>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.1</version>
         <vendor name="OpenTFC Project" url="https://github.com/opentfc" />
         <param name="plugin-icon">images/plugin-icon.png</param>
         <param name="plugin-logo">images/plugin-logo.png</param>
@@ -37,7 +37,6 @@
         <resource type="download" name="opentfc.bundle.css" location="css/opentfc.bundle.css" />
         <resource type="download" name="opentfc.bundle.js" location="js/opentfc.bundle.js" />
         <resource type="download" name="images/" location="images" />
-        <context>atl.general</context>
         <context>viewcontent</context>
         <context>preview</context>
         <context>editor</context>
@@ -62,6 +61,12 @@
         </package>
     </xwork>
 
+    <!-- ==================== Diagnostics (browser-visible logs) ==================== -->
+    <servlet key="opentfc-diagnostics" name="OpenTFC Diagnostics Servlet" class="org.opentfc.diag.OpenTfcDiagnosticsServlet">
+        <description>Браузерная страница диагностики: события OpenTFC, события plugin framework и перехваченные WARN/ERROR общего лога Confluence. Работает без velocity-декораторов.</description>
+        <url-pattern>/diagnostics</url-pattern>
+    </servlet>
+
     <!-- ==================== Primary Macros ==================== -->
 
     <!-- 1. Table Filter Macro -->
@@ -74,8 +79,8 @@
         <category name="formatting" />
         <alias name="open table filter" />
         <alias name="open-table-filter" />
-        <alias name="table-filter" />
-        <alias name="tablefilter" />
+        <!-- Имена без префикса open-* удалены: "table-filter" — имя макроса Stiltsoft,
+             дубли макросов ломают регистрацию и активацию плагина -->
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="showSearchBox" type="boolean" default="true" />
@@ -111,8 +116,7 @@
         <category name="visuals" />
         <alias name="open chart from table" />
         <alias name="open-chart" />
-        <alias name="chart-from-table" />
-        <alias name="chart" />
+        <!-- "chart" — имя встроенного Chart-макроса Confluence, "chart-from-table" — Stiltsoft -->
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="sourceMacroId" type="string" default="" />
@@ -153,8 +157,6 @@
         <category name="formatting" />
         <alias name="open pivot table" />
         <alias name="open-pivot" />
-        <alias name="pivot-table" />
-        <alias name="pivot" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="sourceMacroId" type="string" default="" />
@@ -181,7 +183,6 @@
         <category name="advanced" />
         <alias name="open table transformer" />
         <alias name="open-transformer" />
-        <alias name="table-transformer" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="sourceMacroIds" type="string" default="" />
@@ -200,7 +201,6 @@
         <category name="formatting" />
         <alias name="open table spreadsheet" />
         <alias name="open-spreadsheet" />
-        <alias name="table-spreadsheet" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="attachmentName" type="string" default="" />
@@ -218,8 +218,6 @@
         <description key="opentfc.macro.spreadsheet.include.desc">Вставка диапазона или листа электронной таблицы с другой страницы</description>
         <category name="confluence-content" />
         <alias name="open spreadsheet include" />
-        <alias name="spreadsheet-include" />
-        <alias name="table-spreadsheet-include" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="pageId" type="string" default="" />
@@ -237,7 +235,6 @@
         <description key="opentfc.macro.attachment.desc">Таблица вложений страницы с поддержкой фильтрации и скачивания</description>
         <category name="confluence-content" />
         <alias name="open attachment table" />
-        <alias name="attachment-table" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="includeExtensions" type="string" default="" />
@@ -254,8 +251,6 @@
         <description key="opentfc.macro.csv.desc">Импорт и отображение CSV/TSV данных из вложения или внешнего URL</description>
         <category name="external-content" />
         <alias name="open csv table" />
-        <alias name="csv-table" />
-        <alias name="csv" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="sourceType" type="enum" default="attachment">
@@ -278,8 +273,6 @@
         <description key="opentfc.macro.json.desc">Импорт и отображение табличных JSON-данных из вложения или URL</description>
         <category name="external-content" />
         <alias name="open json table" />
-        <alias name="json-table" />
-        <alias name="json" />
         <parameters>
             <parameter name="macroId" type="string" default="" />
             <parameter name="sourceType" type="enum" default="attachment">

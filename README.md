@@ -82,9 +82,9 @@ atlas-mvn package
 # или стандартным Maven
 mvn package
 ```
-Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.0-SNAPSHOT.jar`.
+Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.1.jar`.
 
-Готовый артефакт также опубликован в релизах: [v1.0.0-SNAPSHOT](https://github.com/Pofium/opentfc-confluence-plugin/releases/tag/v1.0.0-SNAPSHOT) (SHA-256 указан в описании релиза).
+Готовый артефакт также опубликован в релизах: [v1.0.1](https://github.com/Pofium/opentfc-confluence-plugin/releases/tag/v1.0.1) (SHA-256 указан в описании релиза).
 
 ### 4. Запуск юнит-тестов
 ```bash

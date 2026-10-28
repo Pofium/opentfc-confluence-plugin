@@ -1,5 +1,6 @@
 package org.opentfc.rest;
 
+import org.opentfc.diag.OpenTfcLogStore;
 import org.opentfc.model.SqlExecutionResult;
 import org.opentfc.model.TableModel;
 import org.opentfc.service.SqlTransformerEngine;
@@ -34,12 +35,19 @@ public class TransformerRestResource {
                                  @PathParam("macroId") String macroId,
                                  QueryRequest request) {
         if (request == null || request.sql == null) {
+            OpenTfcLogStore.warn("rest-transformer", "Rejected query: SQL body is missing (page=" + pageId + ")");
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "SQL query must be provided"))
                     .build();
         }
 
+        OpenTfcLogStore.info("rest-transformer", "SQL query: page=" + pageId + " macro=" + macroId
+                + " tables=" + (request.tables != null ? request.tables.size() : 0)
+                + " len=" + request.sql.length());
         SqlExecutionResult result = sqlEngine.executeQuery(request.sql, request.tables != null ? request.tables : List.of());
+        if (result.getErrorMessage() != null && !result.getErrorMessage().isEmpty()) {
+            OpenTfcLogStore.warn("rest-transformer", "Query failed on page=" + pageId + ": " + result.getErrorMessage());
+        }
         return Response.ok(result).build();
     }
 }

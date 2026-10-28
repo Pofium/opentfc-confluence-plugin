@@ -9,7 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.opentfc.diag.OpenTfcLogStore;
 
 /**
  * Base class for all OpenTFC macros: parameter helpers, body rendering, config serialization.
@@ -60,6 +64,7 @@ public abstract class BaseOpenTfcMacro implements Macro {
             return xhtmlContent.convertStorageToView(body, ctx);
         } catch (Exception e) {
             log.warn("OpenTFC: failed to render macro body, falling back to raw body: {}", e.getMessage());
+            OpenTfcLogStore.warn("macro", "convertStorageToView failed, raw body fallback: " + e.getMessage());
             return body;
         }
     }
@@ -73,6 +78,15 @@ public abstract class BaseOpenTfcMacro implements Macro {
         }
     }
 
+    private static final Set<String> FIRST_USE_LOGGED = ConcurrentHashMap.newKeySet();
+
+    /** Shows up on /plugins/servlet/opentfc/diagnostics; once per macro instance key. */
+    private void logFirstUse(String macroId) {
+        if (FIRST_USE_LOGGED.add(getClass().getSimpleName() + ":" + macroId)) {
+            OpenTfcLogStore.info("macro", getClass().getSimpleName() + " rendered (macroId=" + macroId + ")");
+        }
+    }
+
     protected long pageIdOf(ConversionContext ctx) {
         return ctx != null && ctx.getEntity() != null ? ctx.getEntity().getId() : 0L;
     }
@@ -83,6 +97,7 @@ public abstract class BaseOpenTfcMacro implements Macro {
 
     /** Wrap content into a standard OpenTFC container div. */
     protected String container(String cssClass, String macroId, Object config, String inner) {
+        logFirstUse(macroId);
         return "<div class=\"opentfc-container " + cssClass + "\" id=\"" + escape(macroId)
                 + "\" data-opentfc-config=\"" + escape(toJson(config)) + "\">" + inner + "</div>";
     }

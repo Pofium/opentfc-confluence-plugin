@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Temp build settings: bypass the 127.0.0.1:2099 proxy from ~/.m2/settings.xml
+     (the running proxy listens on 2080; packages.atlassian.com is reachable directly). -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+    <proxies/>
+    <mirrors/>
+</settings>

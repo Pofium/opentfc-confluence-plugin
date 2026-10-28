@@ -1,5 +1,6 @@
 package org.opentfc.service;
 
+import org.opentfc.diag.OpenTfcLogStore;
 import org.opentfc.model.CellModel;
 import org.opentfc.model.ColumnModel;
 import org.opentfc.model.ColumnType;
@@ -43,6 +44,7 @@ public class SqlTransformerEngine {
 
     private final int timeoutSeconds;
     private final int maxResultRows;
+    private static volatile boolean firstEngineUseLogged = false;
 
     public SqlTransformerEngine() {
         this(10, 50000);
@@ -95,7 +97,13 @@ public class SqlTransformerEngine {
             t.setDaemon(true);
             return t;
         });
+        OpenTfcLogStore.info("sql-engine", "Executing query over " + sourceTables.size()
+                + " source table(s), len=" + query.length());
         try (Connection conn = new org.duckdb.DuckDBDriver().connect("jdbc:duckdb:", new Properties())) {
+            if (!firstEngineUseLogged) {
+                firstEngineUseLogged = true;
+                OpenTfcLogStore.info("sql-engine", "DuckDB engine loaded successfully (first query)");
+            }
             for (int i = 0; i < sourceTables.size(); i++) {
                 createAndPopulateTable(conn, "T" + (i + 1), sourceTables.get(i));
             }
@@ -122,10 +130,12 @@ public class SqlTransformerEngine {
         } catch (SQLException e) {
             String code = "OTFC-SQL-" + Integer.toHexString(Math.abs(String.valueOf(e.getMessage()).hashCode()));
             log.warn("OpenTFC SQL error [{}]: {}", code, e.getMessage());
+            OpenTfcLogStore.warn("sql-engine", "SQL error [" + code + "]: " + firstLine(e.getMessage()));
             return SqlExecutionResult.error(firstLine(e.getMessage()) + " (" + code + ")",
                     System.currentTimeMillis() - start);
         } catch (Exception e) {
             log.error("OpenTFC unexpected SQL engine failure", e);
+            OpenTfcLogStore.error("sql-engine", "Unexpected SQL engine failure", e);
             return SqlExecutionResult.error("Execution failed: " + e.getClass().getSimpleName(),
                     System.currentTimeMillis() - start);
         } finally {
