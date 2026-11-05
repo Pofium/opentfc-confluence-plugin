@@ -1,0 +1,5 @@
+- All calls into Atlassian host APIs are wrapped in try/catch blocks inside `HostBridgeLite`, returning human-readable error strings rather than propagating exceptions, so a broken host environment degrades gracefully.
+- Optional heavy dependencies (log4j-core classes) are loaded through `Class.forName` guards so the compiled jar contains no hard references to them, keeping the artifact minimal and activation-safe.
+- Filesystem access to server logs goes exclusively through `listLogs()`, which enumerates the real directory and filters filenames with a strict `[A-Za-z0-9._ -]{1,80}\.log(\.[0-9]+)?` regex — user-supplied parameters never participate in path construction.
+- Diagnostic events are recorded via static `LiteLogStore.info/warn` methods into a bounded `ArrayDeque` ring buffer with a concurrent drop counter, instead of using a logging framework.
+- HTML output is built with concatenated `StringBuilder` and every untrusted string is passed through the local `esc()` helper that escapes `& < > " '` before being written to the response.

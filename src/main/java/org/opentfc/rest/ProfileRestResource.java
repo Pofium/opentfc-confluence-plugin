@@ -71,6 +71,18 @@ public class ProfileRestResource {
         }
         String userKey = user.getKey().getStringValue();
 
+        // Validate profile name
+        String profileName = model.getName();
+        if (profileName == null || profileName.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Profile name is required").build();
+        }
+        if (profileName.length() > 100) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Profile name must be 100 characters or less").build();
+        }
+        if (!profileName.matches("^[\\w\\s\\-_.]+$")) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Profile name contains invalid characters").build();
+        }
+
         FilterProfile[] existing = ao.find(FilterProfile.class,
                 Query.select().where("PAGE_ID = ? AND MACRO_ID = ? AND USER_KEY = ? AND PROFILE_NAME = ?",
                         pageId, macroId, userKey, model.getName()));

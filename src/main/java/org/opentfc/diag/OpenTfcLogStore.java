@@ -3,10 +3,10 @@ package org.opentfc.diag;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -34,7 +34,8 @@ public final class OpenTfcLogStore {
         }
     }
 
-    private static final Deque<Entry> ENTRIES = new ArrayDeque<>();
+    private static final ConcurrentLinkedDeque<Entry> ENTRIES = new ConcurrentLinkedDeque<>();
+    private static final AtomicInteger SIZE = new AtomicInteger(0);
     private static final AtomicLong DROPPED = new AtomicLong();
     private static volatile boolean hostCaptureInstalled = false;
     private static volatile boolean lifecycleUp = false;
@@ -64,19 +65,18 @@ public final class OpenTfcLogStore {
             String stack = firstStackLines(t);
             msg = msg.isEmpty() ? stack : msg + "\n" + stack;
         }
-        synchronized (ENTRIES) {
-            if (ENTRIES.size() >= MAX_ENTRIES) {
-                ENTRIES.pollFirst();
-                DROPPED.incrementAndGet();
-            }
-            ENTRIES.addLast(new Entry(System.currentTimeMillis(), level, source, msg));
+        Entry entry = new Entry(System.currentTimeMillis(), level, source, msg);
+        ENTRIES.addLast(entry);
+        int newSize = SIZE.incrementAndGet();
+        if (newSize > MAX_ENTRIES) {
+            ENTRIES.pollFirst();
+            SIZE.decrementAndGet();
+            DROPPED.incrementAndGet();
         }
     }
 
     public static List<Entry> snapshot() {
-        synchronized (ENTRIES) {
-            return new ArrayList<>(ENTRIES);
-        }
+        return new ArrayList<>(ENTRIES);
     }
 
     public static long droppedCount() {
@@ -100,10 +100,9 @@ public final class OpenTfcLogStore {
     }
 
     public static void clear() {
-        synchronized (ENTRIES) {
-            ENTRIES.clear();
-            DROPPED.set(0);
-        }
+        ENTRIES.clear();
+        SIZE.set(0);
+        DROPPED.set(0);
         record("INFO", "diag", "Log buffer cleared via diagnostics page", null);
     }
 

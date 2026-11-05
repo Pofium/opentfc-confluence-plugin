@@ -1,0 +1,1 @@
+Build with `mvn package` from `diag-lite/`; produces `target/opentfc-diag-lite-1.0.4.jar`. Deploy into Confluence's `confluence-home/plugins/installed-plugins` (or install via UPM). The servlet is reachable at `/plugins/servlet/diag-lite` and requires an authenticated Confluence session (falls back to checking the `seraph.confluence` cookie when SAL is down).

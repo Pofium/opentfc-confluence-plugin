@@ -1,0 +1,38 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: master
+nodes_managed: true
+exported_at: "2026-11-05T08:16:34Z"
+modules:
+    "":
+        dir_name: OpenTFC Confluence Plugin (Table Filter, Charts & Spreadsheets)
+        title: OpenTFC Confluence Plugin (Table Filter, Charts & Spreadsheets)
+        scope:
+            - README.md
+            - INSTALL.md
+            - USER_GUIDE.md
+            - TZ_table-filter-charts-spreadsheets-alternative.md
+            - .gitignore
+            - pom.xml
+            - package.json
+            - tsconfig.json
+            - webpack.config.js
+            - .github/
+            - CHANGELOG.md
+            - LICENSE
+            - package-lock.json
+        source_files: []
+        children:
+            - diagnostics
+        depends_on: []
+        related_to: []
+    diagnostics:
+        dir_name: OpenTFC Diag Lite — Standalone Confluence Diagnostic Servlet
+        title: OpenTFC Diag Lite — Standalone Confluence Diagnostic Servlet
+        scope:
+            - diag-lite/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

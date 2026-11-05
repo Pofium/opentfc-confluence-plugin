@@ -20,18 +20,18 @@
         </div>
     #end
 
-    <form class="aui" method="post" action="do-save-opentfc-admin.action">
+    <form class="aui" method="post" action="do-save-opentfc-admin.action" id="opentfc-admin-form">
         #form_xsrf_token()
 
         <div class="field-group">
             <label for="sqlTimeoutSeconds">Тайм-аут SQL запроса (сек.):</label>
-            <input type="number" id="sqlTimeoutSeconds" name="sqlTimeoutSeconds" class="text short-field" value="$!sqlTimeoutSeconds" min="1" max="60" />
+            <input type="number" id="sqlTimeoutSeconds" name="sqlTimeoutSeconds" class="text short-field" value="$!sqlTimeoutSeconds" min="1" max="60" required />
             <div class="description">Максимальное время выполнения запросов в DuckDB (по умолчанию 10 с).</div>
         </div>
 
         <div class="field-group">
             <label for="maxResultRows">Макс. число строк результата:</label>
-            <input type="number" id="maxResultRows" name="maxResultRows" class="text short-field" value="$!maxResultRows" min="100" max="500000" />
+            <input type="number" id="maxResultRows" name="maxResultRows" class="text short-field" value="$!maxResultRows" min="100" max="500000" required />
             <div class="description">Ограничение на размер выборки SQL-трансформаций для защиты памяти JVM (по умолчанию 50 000).</div>
         </div>
 
@@ -47,5 +47,39 @@
             </div>
         </div>
     </form>
+
+    <script>
+    (function() {
+        var form = document.getElementById('opentfc-admin-form');
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            var timeout = parseInt(document.getElementById('sqlTimeoutSeconds').value, 10);
+            var maxRows = parseInt(document.getElementById('maxResultRows').value, 10);
+            var errors = [];
+            if (isNaN(timeout) || timeout < 1 || timeout > 60) {
+                errors.push('Тайм-аут SQL должен быть числом от 1 до 60 секунд.');
+            }
+            if (isNaN(maxRows) || maxRows < 100 || maxRows > 500000) {
+                errors.push('Макс. число строк должно быть числом от 100 до 500000.');
+            }
+            var whitelist = document.getElementById('allowedUrlWhitelist').value;
+            var lines = whitelist.split(/\r?\n/);
+            var domainRe = /^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$/;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (line === '' || line === '*') continue;
+                var rule = line.startsWith('*.') ? line.substring(2) : line;
+                if (!domainRe.test(rule)) {
+                    errors.push('Некорректный домен: "' + line + '". Допустимы буквы, цифры, дефис и точка.');
+                    break;
+                }
+            }
+            if (errors.length > 0) {
+                e.preventDefault();
+                alert('Ошибки валидации:\n\n' + errors.join('\n'));
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

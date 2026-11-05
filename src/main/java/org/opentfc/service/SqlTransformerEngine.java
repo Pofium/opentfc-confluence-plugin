@@ -36,6 +36,17 @@ import java.util.regex.Pattern;
 public class SqlTransformerEngine {
     private static final Logger log = LoggerFactory.getLogger(SqlTransformerEngine.class);
 
+    /** Shared executor for DuckDB queries — avoids per-query thread leak. */
+    private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "opentfc-duckdb");
+        t.setDaemon(true);
+        return t;
+    });
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(EXECUTOR::shutdownNow, "opentfc-executor-shutdown"));
+    }
+
     private static final Pattern ALLOWED_START = Pattern.compile(
             "^\\s*(\\(\\s*)*(SELECT|WITH|FROM|PIVOT|UNPIVOT|VALUES)\\b", Pattern.CASE_INSENSITIVE);
     /** Prototype dialect: T1.'Column Name' -> T1."Column Name". */
@@ -92,11 +103,6 @@ public class SqlTransformerEngine {
             return SqlExecutionResult.error("Security violation: only a single SELECT query is permitted", 0);
         }
 
-        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "opentfc-duckdb");
-            t.setDaemon(true);
-            return t;
-        });
         OpenTfcLogStore.info("sql-engine", "Executing query over " + sourceTables.size()
                 + " source table(s), len=" + query.length());
         try (Connection conn = new org.duckdb.DuckDBDriver().connect("jdbc:duckdb:", new Properties())) {
@@ -113,7 +119,7 @@ public class SqlTransformerEngine {
             }
 
             try (PreparedStatement stmt = conn.prepareStatement(query)) {
-                Future<TableModel> future = executor.submit(() -> readResult(stmt));
+                Future<TableModel> future = EXECUTOR.submit(() -> readResult(stmt));
                 try {
                     TableModel table = future.get(timeoutSeconds, TimeUnit.SECONDS);
                     return SqlExecutionResult.success(table, System.currentTimeMillis() - start);
@@ -138,8 +144,6 @@ public class SqlTransformerEngine {
             OpenTfcLogStore.error("sql-engine", "Unexpected SQL engine failure", e);
             return SqlExecutionResult.error("Execution failed: " + e.getClass().getSimpleName(),
                     System.currentTimeMillis() - start);
-        } finally {
-            executor.shutdownNow();
         }
     }
 

@@ -1,0 +1,1 @@
+Tiny companion Confluence plugin exposing /plugins/servlet/diag-lite: a self-contained status page that shows OpenTFC state, disabled plugins, and host log tails even when the main plugin cannot activate.

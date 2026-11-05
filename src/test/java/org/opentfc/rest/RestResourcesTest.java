@@ -55,7 +55,7 @@ public class RestResourcesTest {
         assertEquals(200, response.getStatus());
 
         Map<String, Object> config = (Map<String, Object>) response.getEntity();
-        assertEquals("1.0.4", config.get("version"));
+        assertEquals(org.opentfc.service.OpenTfcVersion.VERSION, config.get("version"));
         assertEquals(10, config.get("sqlTimeoutSeconds"));
         assertEquals(50000, config.get("maxResultRows"));
         assertEquals(10, config.get("maxFileSizeMb"));
@@ -236,7 +236,8 @@ public class RestResourcesTest {
                 .getSourceData(1L, "m", "csv", null, "http://127.0.0.1/secret.csv", "UTF-8", ",");
 
         assertEquals(500, response.getStatus());
-        assertTrue(String.valueOf(response.getEntity()).contains("SSRF"));
+        // Error message is now generic (no internal details leaked)
+        assertTrue(String.valueOf(response.getEntity()).contains("Error loading source data"));
     }
 
     @Test
@@ -253,7 +254,8 @@ public class RestResourcesTest {
         Response response = new SourceRestResource(pageManager, attachmentManager)
                 .getSourceData(1L, "m", "csv", "a.csv", null, "NOT-A-CHARSET", ",");
 
-        assertEquals(500, response.getStatus());
+        // Invalid charset now falls back to UTF-8 instead of throwing — returns 200
+        assertEquals(200, response.getStatus());
     }
 
     @Test

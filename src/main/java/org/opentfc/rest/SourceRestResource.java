@@ -106,7 +106,7 @@ public class SourceRestResource {
         } catch (Exception e) {
             log.error("Failed to retrieve source data: {}", e.getMessage(), e);
             OpenTfcLogStore.error("rest-source", "Source load failed: page=" + pageId + " type=" + type, e);
-            return Response.serverError().entity("Error loading source: " + e.getMessage()).build();
+            return Response.serverError().entity("Error loading source data. Check server logs for details.").build();
         }
     }
 }

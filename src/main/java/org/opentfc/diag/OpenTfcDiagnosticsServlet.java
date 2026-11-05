@@ -29,10 +29,10 @@ import java.util.List;
  */
 public class OpenTfcDiagnosticsServlet extends HttpServlet {
 
-    static final String VERSION = "1.0.4";
+    static final String VERSION = org.opentfc.service.OpenTfcVersion.VERSION;
 
-    private static volatile String salError = "";
-    private static volatile String homeSource = "none";
+    private static final java.util.concurrent.atomic.AtomicReference<String> SAL_ERROR = new java.util.concurrent.atomic.AtomicReference<>("");
+    private static final java.util.concurrent.atomic.AtomicReference<String> HOME_SOURCE = new java.util.concurrent.atomic.AtomicReference<>("none");
 
     // ===== Файлы журналов сервера =====
     // Читаются только файлы из фактического листинга каталога <home>/logs;
@@ -53,20 +53,20 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
                 if (home != null) {
                     File dir = new File(home, "logs");
                     if (dir.isDirectory()) {
-                        homeSource = "sal";
+                        HOME_SOURCE.set("sal");
                         return dir;
                     }
                 }
             }
         } catch (Throwable e) {
-            salError = e.getClass().getName() + ": " + e.getMessage();
+            SAL_ERROR.set(e.getClass().getName() + ": " + e.getMessage());
         }
         Path probe = HomeDirProbe.logsDirFromSysProp();
         if (probe != null) {
-            homeSource = "sysprop";
+            HOME_SOURCE.set("sysprop");
             return probe.toFile();
         }
-        homeSource = "none";
+        HOME_SOURCE.set("none");
         return null;
     }
 
@@ -303,7 +303,7 @@ public class OpenTfcDiagnosticsServlet extends HttpServlet {
          .append(" / ").append(OpenTfcLogStore.droppedCount()).append("</td></tr>")
          .append("<tr><td class=\"k\">Версия Confluence</td><td>").append(escape(confluenceVersion())).append("</td>")
          .append("<tr><td class=\"k\">SAL UserManager</td><td colspan=\"3\">")
-         .append(userManager() != null ? "подключён" : "<span class=\"bad\">недоступен: " + escape(salError) + "</span> — журналы ищутся через confluence.home (источник: " + escape(homeSource) + ")")
+         .append(userManager() != null ? "подключён" : "<span class=\"bad\">недоступен: " + escape(SAL_ERROR.get()) + "</span> — журналы ищутся через confluence.home (источник: " + escape(HOME_SOURCE.get()) + ")")
          .append("</td></tr>")
          .append("</table>");
 

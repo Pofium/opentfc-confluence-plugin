@@ -182,12 +182,59 @@ export class SpreadsheetManager {
         const cell = this.data[match];
         return cell && !isNaN(Number(cell.val)) ? String(cell.val) : '0';
       });
-      // Safe arithmetic evaluator
+      // Safe arithmetic evaluator — recursive descent parser (no eval/Function)
       if (/^[0-9+\-*/().\s]+$/.test(expr)) {
-        return Function(`'use strict'; return (${expr})`)();
+        return this.safeArithmeticEval(expr);
       }
     } catch {}
     return '#VALUE!';
+  }
+
+  /**
+   * Safe recursive-descent arithmetic parser.
+   * Grammar: expr → term (('+' | '-') term)*
+   *          term → factor (('*' | '/') factor)*
+   *          factor → number | '(' expr ')'
+   */
+  private safeArithmeticEval(expr: string): number {
+    let pos = 0;
+    const str = expr.replace(/\s+/g, '');
+
+    const parseExpr = (): number => {
+      let result = parseTerm();
+      while (pos < str.length && (str[pos] === '+' || str[pos] === '-')) {
+        const op = str[pos++];
+        const right = parseTerm();
+        result = op === '+' ? result + right : result - right;
+      }
+      return result;
+    };
+
+    const parseTerm = (): number => {
+      let result = parseFactor();
+      while (pos < str.length && (str[pos] === '*' || str[pos] === '/')) {
+        const op = str[pos++];
+        const right = parseFactor();
+        result = op === '*' ? result * right : result / right;
+      }
+      return result;
+    };
+
+    const parseFactor = (): number => {
+      if (str[pos] === '(') {
+        pos++; // skip '('
+        const result = parseExpr();
+        if (str[pos] === ')') pos++; // skip ')'
+        return result;
+      }
+      const start = pos;
+      if (str[pos] === '-' || str[pos] === '+') pos++;
+      while (pos < str.length && (str[pos] >= '0' && str[pos] <= '9' || str[pos] === '.')) pos++;
+      const num = parseFloat(str.substring(start, pos));
+      return isNaN(num) ? 0 : num;
+    };
+
+    return parseExpr();
   }
 
   private sumRange(range: string): number {

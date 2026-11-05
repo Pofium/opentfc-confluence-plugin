@@ -1,0 +1,2 @@
+- Third-party library versions are pinned once in the root `pom.xml` `<properties>` and referenced via `${...}` variables from every child module rather than repeated locally.
+- Optional Confluence/OSGi packages are imported with `resolution:="optional"` in the AMPS `<Import-Package>` block and guarded at runtime, while required platform APIs are imported without the optional flag to fail fast on wiring errors.

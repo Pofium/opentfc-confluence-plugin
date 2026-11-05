@@ -1,0 +1,1 @@
+Java 17 + Atlassian AMPS 8.11.4 (Confluence 8.5 LTS–9.x), DuckDB JDBC 1.1.3, Apache POI 5.2.5, Jackson 2.15.3, Jsoup 1.17.2, Commons CSV 1.10.0; TypeScript 5.3 + Webpack 5 + AG Grid Community 31 + ECharts 5 for the frontend bundle.

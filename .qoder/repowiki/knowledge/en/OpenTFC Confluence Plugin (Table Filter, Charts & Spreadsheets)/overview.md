@@ -1,0 +1,1 @@
+Atlassian Confluence Data Center plugin that bundles the OpenTFC table-filter, chart, pivot, transformer, spreadsheet, and diagnostics sub-modules into a single AMPS-packaged JAR with a shared Maven/Node build.

@@ -4,6 +4,27 @@ All notable changes to OpenTFC are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-11-05
+
+### Security
+- **Утечка ExecutorService в SQL-движке**: `SqlTransformerEngine` создавал новый `ExecutorService` на каждый запрос — утечка потоков. Заменён на общий `static final` пул с shutdown hook.
+- **Обход песочницы арифметики в электронных таблицах**: `Function()` в `spreadsheet-manager.ts` заменён на безопасный recursive-descent парсер (нет eval/Function).
+- **Анонимный доступ к конфигу**: убрана аннотация `@AnonymousAllowed` с `ConfigRestResource` — теперь требуется аутентификация.
+- **Утечка сообщений об ошибках**: `SourceRestResource` больше не раскрывает `e.getMessage()` в HTTP-ответе — только общее сообщение.
+
+### Fixed
+- **Необработанная кодировка**: `Charset.forName()` в `DataSourceResolver` обёрнут в try/catch с fallback на UTF-8.
+- **Нет валидации имени профиля**: `ProfileRestResource` теперь проверяет длину (≤100) и допустимые символы имени профиля.
+- **Гонка полей diagnostics servlet**: `volatile` поля `salError`/`homeSource` заменены на `AtomicReference`.
+- **Неэффективный DateFormatter**: `SimpleDateFormat` per-call в `AttachmentTableMacro` заменён на потокобезопасный `static final DateTimeFormatter`.
+- **Bottleneck синхронизации логов**: `synchronized` в `OpenTfcLogStore` заменён на `ConcurrentLinkedDeque` + `AtomicInteger`.
+- **Нет клиентской валидации**: добавлена JavaScript-валидация на админ-странице (диапазоны, формат доменов).
+- **Дубликат CSS**: `opentfc.bundle.css` помечен как GENERATED (источник — `opentfc.css`).
+
+### Changed
+- **Консолидация версии**: все хардкоженные `"1.0.4"` заменены на `OpenTfcVersion.VERSION` (единый источник истины).
+- Версия обновлена до 1.0.5.
+
 ## [1.0.4] - 2026-10-28
 
 ### Fixed

@@ -1,6 +1,6 @@
 package org.opentfc.rest;
 
-import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
+import org.opentfc.service.OpenTfcVersion;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -12,16 +12,16 @@ import java.util.Map;
 
 /**
  * REST endpoint returning client-side plugin configuration and limits.
+ * Authentication required (no @AnonymousAllowed).
  */
 @Path("/config")
 @Produces(MediaType.APPLICATION_JSON)
 public class ConfigRestResource {
 
     @GET
-    @AnonymousAllowed
     public Response getConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("version", "1.0.4");
+        config.put("version", OpenTfcVersion.VERSION);
         config.put("sqlTimeoutSeconds", 10);
         config.put("maxResultRows", 50000);
         config.put("maxFileSizeMb", 10);

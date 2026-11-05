@@ -1,0 +1,1 @@
+Java 17, plain javax.servlet 4.0.1, Atlassian SAL 5.1.3 + atlassian-event 5.0.2 + atlassian-plugins-core 7.2.2 + log4j-core 2.21.1 (all `provided` scope). Built with maven-compiler-plugin 3.11.0 and maven-jar-plugin 3.3.0; no bnd/AMP — Confluence wraps the bundle and marks all imports optional.

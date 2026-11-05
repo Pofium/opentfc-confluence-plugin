@@ -1,6 +1,6 @@
 {
   "name": "opentfc-frontend",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "Frontend bundles for OpenTFC Confluence DC plugin",
   "main": "src/main/frontend/src/index.ts",
   "scripts": {

@@ -48,8 +48,14 @@ public class DataSourceResolver {
     /** Decode bytes: explicit charset, or auto (UTF-8 BOM / UTF-16 BOM / strict UTF-8 / windows-1251). */
     public String decode(byte[] data, String encoding) {
         if (encoding != null && !encoding.isBlank() && !"auto".equalsIgnoreCase(encoding)) {
-            String text = new String(data, Charset.forName(encoding.trim()));
-            return stripBom(text);
+            try {
+                String text = new String(data, Charset.forName(encoding.trim()));
+                return stripBom(text);
+            } catch (Exception e) {
+                // Invalid charset name — fall back to UTF-8
+                String text = new String(data, StandardCharsets.UTF_8);
+                return stripBom(text);
+            }
         }
         if (data.length >= 2 && (data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xFE) {
             return new String(data, 2, data.length - 2, StandardCharsets.UTF_16LE);

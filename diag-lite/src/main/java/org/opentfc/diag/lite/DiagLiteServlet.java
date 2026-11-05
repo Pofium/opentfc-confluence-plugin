@@ -135,7 +135,7 @@ public class DiagLiteServlet extends HttpServlet {
          .append(".bad{color:#bf2600;font-weight:600}.good{color:#006644;font-weight:600}")
          .append("</style></head><body>");
 
-        h.append("<header><h1>OpenTFC Diag Lite v1.0.4</h1><div class=\"tb\">")
+        h.append("<header><h1>OpenTFC Diag Lite v1.0.5</h1><div class=\"tb\">")
          .append("<a href=\"").append(PAGE_URL).append("\">Обновить</a>")
          .append("<a href=\"").append(PAGE_URL).append("?dl=1\">Скачать хвост журнала</a>")
          .append("<a href=\"").append(PAGE_URL).append("?format=txt\">Скачать события diag-lite</a>")

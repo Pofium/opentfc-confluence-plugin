@@ -1,0 +1,20 @@
+schema_version: 1
+module_path: ""
+title: OpenTFC Confluence Plugin (Table Filter, Charts & Spreadsheets)
+scope:
+    - README.md
+    - INSTALL.md
+    - USER_GUIDE.md
+    - TZ_table-filter-charts-spreadsheets-alternative.md
+    - .gitignore
+    - pom.xml
+    - package.json
+    - tsconfig.json
+    - webpack.config.js
+    - .github/
+    - CHANGELOG.md
+    - LICENSE
+    - package-lock.json
+source_files: []
+depends_on: []
+related_to: []

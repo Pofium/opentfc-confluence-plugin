@@ -11,7 +11,9 @@ import com.atlassian.sal.api.ApplicationProperties;
 import com.atlassian.sal.api.UrlMode;
 import com.atlassian.sal.api.component.ComponentLocator;
 
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -25,6 +27,9 @@ import java.util.stream.Collectors;
  * (can be wrapped by Table Filter for filtering/sorting).
  */
 public class AttachmentTableMacro extends BaseOpenTfcMacro {
+
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault());
 
     private final AttachmentManager attachmentManager;
     private final ApplicationProperties applicationProperties;
@@ -81,7 +86,6 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
         ContentEntityObject entity = ctx != null ? ctx.getEntity() : null;
         if (entity != null && attachmentManager != null) {
             List<Attachment> attachments = attachmentManager.getLatestVersionsOfAttachments(entity);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT);
             for (Attachment att : attachments) {
                 String fileName = att.getFileName();
                 String ext = extensionOf(fileName);
@@ -101,7 +105,7 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
                     .append(att.getCreator() != null ? escape(att.getCreator().getFullName()) : "")
                     .append("</td>")
                     .append("<td class=\"confluenceTd\">")
-                    .append(sdf.format(modDate))
+                    .append(DATE_FORMATTER.format(modDate.toInstant()))
                     .append("</td>")
                     .append("<td class=\"confluenceTd\">")
                     .append(att.getVersionComment() != null ? escape(att.getVersionComment()) : "")
