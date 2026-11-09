@@ -14,15 +14,20 @@
 
 ## 🚀 Ключевые возможности
 
+![Table Filter UI](src/main/resources/images/filter-ui.png)
+
 1. **Open Table Filter** (`opentfc-table-filter`):
    - Глобальный и поколоночный поиск/фильтрация
    - Автоопределение типов колонок (числа, даты, текст, категории)
-   - Мультисортировка (включая Shift+клик)
+   - Строка фильтров под заголовком: SELECT-поповер, От/До (текстовые, ru-RU форматы), date-picker
+   - Мультисортировка (включая Shift+клик) с бейджами ▲/▼
    - Заморозка заголовков (sticky header) и первых колонок
    - Скрытие/показ колонок
    - Строка итогов (SUM, AVG, MIN, MAX, COUNT)
+   - Ссылка на состояние фильтров в URL (UTF-8-safe deep links)
    - Персональные профили фильтрации с сохранением в Active Objects
-   - Экспорт в CSV / XLSX
+   - Экспорт в CSV / XLSX (серверный Apache POI, без silent-fallback)
+   - Автоконфликт с `confluence-sortable-tables` / jQuery tablesorter (`data-sortable="false"`)
 
 2. **Open Chart from Table** (`opentfc-chart`):
    - 15+ видов интерактивных диаграмм на базе Apache ECharts (Column, Bar, Stacked, Line, Area, Pie, Donut, Scatter, Radar, Funnel, Gantt)
@@ -82,15 +87,15 @@ atlas-mvn package
 # или стандартным Maven
 mvn package
 ```
-Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.4.jar`.
+Собранный JAR плагина появится в каталоге `target/opentfc-confluence-plugin-1.0.6.jar`.
 
-Готовый артефакт также опубликован в релизах: [v1.0.4](https://github.com/Pofium/opentfc-confluence-plugin/releases/tag/v1.0.4) (SHA-256 указан в описании релиза). Там же — `opentfc-diag-lite.jar`: крошечный плагин-компаньон для диагностики (`/plugins/servlet/diag-lite`), если основной плагин не активируется.
+Готовый артефакт также опубликован в релизах: [v1.0.6](https://github.com/Pofium/opentfc-confluence-plugin/releases/tag/v1.0.6) (SHA-256 указан в описании релиза). Там же — `opentfc-diag-lite.jar`: крошечный плагин-компаньон для диагностики (`/plugins/servlet/diag-lite`), если основной плагин не активируется.
 
 ### 4. Запуск юнит-тестов
 ```bash
 mvn test
 ```
-109 тестов покрывают сервисы (извлечение таблиц и вывод типов, CSV/JSON-парсеры, SSRF-защита, SQL-движок DuckDB и песочницу), экспорт CSV/XLSX, рендер всех макросов (включая XSS-экранирование и export-режим PDF/Word), REST-слой (источники, трансформер, экспорт, профили с правами), админ-действие и консистентность i18n.
+127 тестов покрывают сервисы (извлечение таблиц и вывод типов, CSV/JSON-парсеры, SSRF-защита, SQL-движок DuckDB и песочницу), экспорт CSV/XLSX, рендер всех макросов (включая XSS-экранирование, export-режим PDF/Word и `data-sortable="false"`), REST-слой (источники, трансформер, экспорт, профили с правами), админ-действие и консистентность i18n.
 
 Покрытие (JaCoCo): **94 % строк / 78 % ветвей**, отчёт — `target/site/jacoco/index.html`.
 
