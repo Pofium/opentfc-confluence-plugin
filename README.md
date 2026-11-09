@@ -1,3 +1,5 @@
+<img src="opentfc-logo.jpg" align="left" width="96" height="96" alt="OpenTFC logo">
+
 # OpenTFC (Open Table Filter, Charts & Spreadsheets for Confluence DC)
 
 [![CI](https://github.com/Pofium/opentfc-confluence-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Pofium/opentfc-confluence-plugin/actions/workflows/ci.yml)
@@ -9,6 +11,8 @@
 
 👉 **[Подробное руководство пользователя по работе с макросами (USER_GUIDE.md)](USER_GUIDE.md)**
 👉 **[Руководство по установке и администрированию (INSTALL.md)](INSTALL.md)**
+
+<br clear="left">
 
 ---
 
