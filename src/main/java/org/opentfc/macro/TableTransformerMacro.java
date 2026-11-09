@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * Table Transformer macro: runs SQL (DuckDB, server-side) over tables T1..Tn found in its body.
  */
+@Named
 public class TableTransformerMacro extends BaseOpenTfcMacro {
 
     public TableTransformerMacro() {
@@ -29,7 +32,7 @@ public class TableTransformerMacro extends BaseOpenTfcMacro {
             return "<div class=\"opentfc-export-transformer\">" + renderedBody + "</div>";
         }
 
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-transformer", body, ctx);
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
         config.put("pageId", pageIdOf(ctx));

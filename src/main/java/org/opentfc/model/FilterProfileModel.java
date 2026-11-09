@@ -1,5 +1,6 @@
 package org.opentfc.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
@@ -23,7 +24,13 @@ public class FilterProfileModel implements Serializable {
     @JsonProperty("name")
     private String name;
 
-    @JsonProperty("state")
+    /**
+     * Wire name matches the getter-derived one ("stateJson"), so the payload is identical
+     * whether it is produced by the plugin's Jackson or by the Confluence platform Jackson.
+     * "state" stays accepted as a legacy alias.
+     */
+    @JsonProperty("stateJson")
+    @JsonAlias("state")
     private String stateJson;
 
     public FilterProfileModel() {}

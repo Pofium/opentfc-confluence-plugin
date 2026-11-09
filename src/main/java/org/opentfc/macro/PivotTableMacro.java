@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * Pivot Table macro: groups and aggregates the body table or an upstream macro on the client.
  */
+@Named
 public class PivotTableMacro extends BaseOpenTfcMacro {
 
     public PivotTableMacro() {
@@ -29,7 +32,7 @@ public class PivotTableMacro extends BaseOpenTfcMacro {
             return "<div class=\"opentfc-export-pivot\">" + renderedBody + "</div>";
         }
 
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-pivot", body, ctx);
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
         config.put("sourceMacroId", parameters.getOrDefault("sourceMacroId", ""));

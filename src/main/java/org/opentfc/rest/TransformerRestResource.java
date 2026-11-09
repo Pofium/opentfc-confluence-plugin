@@ -33,7 +33,17 @@ public class TransformerRestResource {
     @Path("/{pageId}/{macroId}/query")
     public Response executeQuery(@PathParam("pageId") long pageId,
                                  @PathParam("macroId") String macroId,
-                                 QueryRequest request) {
+                                 String body) {
+        QueryRequest request;
+        try {
+            request = OpenTfcJson.read(body, QueryRequest.class);
+        } catch (Exception e) {
+            log.warn("Rejected transformer body on page={}: {}", pageId, e.getMessage());
+            OpenTfcLogStore.warn("rest-transformer", "Malformed query body (page=" + pageId + "): " + e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "Malformed JSON request body"))
+                    .build();
+        }
         if (request == null || request.sql == null) {
             OpenTfcLogStore.warn("rest-transformer", "Rejected query: SQL body is missing (page=" + pageId + ")");
             return Response.status(Response.Status.BAD_REQUEST)
@@ -48,6 +58,13 @@ public class TransformerRestResource {
         if (result.getErrorMessage() != null && !result.getErrorMessage().isEmpty()) {
             OpenTfcLogStore.warn("rest-transformer", "Query failed on page=" + pageId + ": " + result.getErrorMessage());
         }
-        return Response.ok(result).build();
+        try {
+            // Serialized by our own mapper so that cell values travel as "val".
+            return Response.ok(OpenTfcJson.write(result), MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            log.error("Transformer result serialization failed on page={}: {}", pageId, e.getMessage(), e);
+            OpenTfcLogStore.error("rest-transformer", "Result serialization failed (page=" + pageId + ")", e);
+            return Response.serverError().entity("Query executed but the result could not be serialized").build();
+        }
     }
 }

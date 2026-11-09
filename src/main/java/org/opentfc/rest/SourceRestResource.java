@@ -14,6 +14,7 @@ import org.opentfc.service.OpenTfcSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.inject.Named;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -22,6 +23,7 @@ import java.io.InputStream;
 /**
  * REST endpoint for resolving external and attachment table sources.
  */
+@Named
 @Path("/source")
 @Produces(MediaType.APPLICATION_JSON)
 public class SourceRestResource {
@@ -102,7 +104,10 @@ public class SourceRestResource {
             }
 
             model.setId(macroId);
-            return Response.ok(model).build();
+            // Serialized explicitly: letting Jersey marshal the model would use the platform
+            // Jackson, whose property names differ from our annotations ("rawValue" instead
+            // of "val"), and the frontend would read every cell as empty.
+            return Response.ok(OpenTfcJson.write(model), MediaType.APPLICATION_JSON).build();
         } catch (Exception e) {
             log.error("Failed to retrieve source data: {}", e.getMessage(), e);
             OpenTfcLogStore.error("rest-source", "Source load failed: page=" + pageId + " type=" + type, e);

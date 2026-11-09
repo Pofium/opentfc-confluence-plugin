@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * Spreadsheet Include macro: read-only view of a spreadsheet (by page id + spreadsheet macroId).
  */
+@Named
 public class SpreadsheetIncludeMacro extends BaseOpenTfcMacro {
 
     public SpreadsheetIncludeMacro() {
@@ -29,7 +32,7 @@ public class SpreadsheetIncludeMacro extends BaseOpenTfcMacro {
     @Override
     public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-spreadsheet-include", body, ctx);
         if (isExportMode(ctx)) {
             return "<div class=\"opentfc-export-spreadsheet-include opentfc-export-spreadsheet-include-fallback\">[OpenTFC Spreadsheet Include]</div>";
         }

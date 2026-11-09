@@ -202,4 +202,26 @@ public class MacroAdditionalTests {
         assertFalse(out.contains("<script>"));
         assertTrue(out.contains("&quot;&gt;"));
     }
+
+    /**
+     * The built-in Confluence "sortable tables" plugin grabs every table with a &lt;th&gt; row and
+     * re-appends its cached rows on each sort, which brings filtered rows back. The tables this
+     * macro renders have to carry the plugin's own opt-out flag from the very first render.
+     */
+    @Test
+    public void testTableFilterMarksTablesUnsortableForHost() {
+        String html = TableFilterMacro.markTablesUnsortable(
+                "<table class=\"wrapped confluenceTable\"><tbody><tr><th>a</th></tr></tbody></table>"
+                        + "<TABLE><tr><td>1</td></tr></TABLE>");
+
+        assertTrue(html.contains("class=\"wrapped confluenceTable\" data-sortable=\"false\">"));
+        assertTrue(html.contains("<TABLE data-sortable=\"false\">"));
+        assertEquals(2, html.split("data-sortable=\"false\"", -1).length - 1);
+    }
+
+    @Test
+    public void testTableFilterKeepsExplicitSortableFlag() {
+        String html = TableFilterMacro.markTablesUnsortable("<table data-sortable=\"true\"><tr></tr></table>");
+        assertEquals("<table data-sortable=\"true\"><tr></tr></table>", html);
+    }
 }

@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * JSON Table macro: data comes from a page attachment, external URL (whitelisted) or inline body.
  */
+@Named
 public class JsonTableMacro extends BaseOpenTfcMacro {
 
     public JsonTableMacro() {
@@ -29,7 +32,7 @@ public class JsonTableMacro extends BaseOpenTfcMacro {
     @Override
     public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-json", body, ctx, "height");
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("macroId", macroId);
         config.put("pageId", pageIdOf(ctx));

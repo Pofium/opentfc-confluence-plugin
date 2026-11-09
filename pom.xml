@@ -6,7 +6,7 @@
 
     <groupId>org.opentfc</groupId>
     <artifactId>opentfc-confluence-plugin</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
     <packaging>atlassian-plugin</packaging>
 
     <name>OpenTFC - Open Table Filter, Charts &amp; Spreadsheets</name>
@@ -136,11 +136,15 @@
             <version>${atlassian.spring.scanner.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- Spring Scanner runtime: MUST be <scope>provided</scope> since scanner 2.0.
+             Embedding it inside the plugin JAR causes:
+             "Incorrect use of atlassian-spring-scanner-runtime: embedding scanner-runtime
+             is not supported since scanner version 2.0" -->
         <dependency>
             <groupId>com.atlassian.plugin</groupId>
             <artifactId>atlassian-spring-scanner-runtime</artifactId>
             <version>${atlassian.spring.scanner.version}</version>
-            <scope>runtime</scope>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>
@@ -173,11 +177,15 @@
             <version>3.12.0</version>
             <scope>provided</scope>
         </dependency>
+        <!-- POI 5.2.5 требует commons-io >= 2.12 (UnsynchronizedByteArrayOutputStream.builder()).
+             Confluence экспортирует собственную, более старую копию org.apache.commons.io,
+             поэтому scope=provided приводил к NoSuchMethodError внутри XSSFWorkbook.write(),
+             то есть экспорт в Excel падал с HTTP 500. Библиотека ОБЯЗАНА быть вложенной
+             в бандл (compile): тогда bnd не добавляет Import-Package и POI использует нашу копию. -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.15.1</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- ===== Bundled into the plugin jar ===== -->
@@ -246,7 +254,16 @@
                     <enableQuickReload>false</enableQuickReload>
                     <skipRestDocGeneration>true</skipRestDocGeneration>
                     <compressResources>false</compressResources>
-                    <skipBannedDependencies>true</skipBannedDependencies>
+                    <!-- AMPS банит платформенные артефакты, чтобы плагин не дублировал их в
+                         бандле. commons-io — осознанное исключение из правила: POI 5.2.5 вызывает
+                         UnsynchronizedByteArrayOutputStream.builder() (появился в 2.12), а
+                         Confluence экспортирует более старую копию, что давало NoSuchMethodError
+                         и HTTP 500 на экспорте в Excel. Копия вложена в бандл, а пакет исключён из
+                         Import-Package (см. инструкции ниже), поэтому split-package не возникает.
+                         Остальной список бана остаётся действующим. -->
+                    <banningExcludes>
+                        <exclude>commons-io:commons-io</exclude>
+                    </banningExcludes>
                     <jvmArgs>-Xmx2g</jvmArgs>
                     <instructions>
                         <Atlassian-Plugin-Key>org.opentfc.confluence.plugin</Atlassian-Plugin-Key>
@@ -255,22 +272,29 @@
                         <Export-Package/>
                         <!-- Явные обязательные импорты (fail-fast на ошибках wiring) +
                              optional только для подсистем, которые гардятся в рантайме.
-                             Всеобъемлющий "*;resolution:=optional" в начале списка маскировал
-                             ошибки активации и приводил к полукислотному состоянию плагина. -->
+                             ВАЖНО: специфичные паттерны идут РАНЬШЕ широких, чтобы
+                             bnd не матчил com.atlassian.plugin.* раньше
+                             com.atlassian.plugin.spring.scanner.* (иначе spring-scanner
+                             становится required, а не optional).
+                             НЕГАЦИИ (!...) стоят первыми: org.apache.commons.io намеренно
+                             НЕ импортируется у платформы Confluence, а берётся из вложенной
+                             в бандл копии — POI 5.2.5 не работает со старой платформенной. -->
                         <Import-Package>
+                            !org.apache.commons.io,
+                            !org.apache.commons.io.*,
                             com.atlassian.confluence.*,
                             com.atlassian.activeobjects.*,
                             com.atlassian.sal.api.*,
                             com.atlassian.event.api,
-                            com.atlassian.plugin.osgi.*;resolution:="optional",
-                            com.atlassian.plugin.*,
-                            com.atlassian.plugin.spring.scanner.*,
-                            com.atlassian.plugins.rest.common.*,
                             net.java.ao.*,
                             javax.ws.rs.*,
                             javax.servlet.*,
                             javax.inject.*,
                             org.slf4j.*,
+                            com.atlassian.plugin.osgi.*;resolution:="optional",
+                            com.atlassian.plugin.spring.scanner.*;resolution:="optional",
+                            com.atlassian.plugins.rest.common.*;resolution:="optional",
+                            com.atlassian.plugin.*;resolution:="optional",
                             org.springframework.*;resolution:="optional",
                             org.apache.logging.log4j.*;resolution:="optional",
                             *;resolution:="optional"

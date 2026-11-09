@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * Chart from Table macro: renders an ECharts chart from the body table or an upstream macro.
  */
+@Named
 public class ChartFromTableMacro extends BaseOpenTfcMacro {
 
     public ChartFromTableMacro() {
@@ -33,7 +36,7 @@ public class ChartFromTableMacro extends BaseOpenTfcMacro {
                     + renderedBody + "</div>";
         }
 
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-chart", body, ctx, "height", "chartTitle");
         String height = parameters.getOrDefault("height", "400px").replaceAll("[^0-9a-z%.]", "");
 
         Map<String, Object> config = new LinkedHashMap<>();

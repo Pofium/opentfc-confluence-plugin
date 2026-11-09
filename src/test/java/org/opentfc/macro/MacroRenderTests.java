@@ -190,4 +190,55 @@ public class MacroRenderTests {
         String out2 = macro.execute(params, "", contextWithOutputType(null));
         assertEquals(parseRoot(out1).id(), parseRoot(out2).id());
     }
+
+    /**
+     * Regression for the broken shared links: a random identifier per render meant that
+     * ?tf_&lt;macroId&gt;=... deep links and saved views pointed at an identifier that had already
+     * disappeared on the next page view.
+     */
+    @Test
+    public void testDerivedMacroIdIsStableAcrossRenders() throws Exception {
+        TableFilterMacro macro = new TableFilterMacro();
+        String body = "<table><tr><td>a</td></tr></table>";
+
+        String id1 = parseRoot(macro.execute(new HashMap<>(), body, contextWithOutputType(null))).id();
+        String id2 = parseRoot(macro.execute(new HashMap<>(), body, contextWithOutputType(null))).id();
+
+        assertTrue(id1, id1.startsWith("otfc-"));
+        assertEquals("derived macroId must not change between renders", id1, id2);
+    }
+
+    @Test
+    public void testDerivedMacroIdFollowsContentAndParameters() throws Exception {
+        TableFilterMacro macro = new TableFilterMacro();
+        String body = "<table><tr><td>a</td></tr></table>";
+        Map<String, String> params = new HashMap<>();
+        params.put("pageSize", "25");
+
+        String base = parseRoot(macro.execute(params, body, contextWithOutputType(null))).id();
+        String otherBody = parseRoot(macro.execute(params, "<table><tr><td>b</td></tr></table>",
+                contextWithOutputType(null))).id();
+        String otherParams = parseRoot(macro.execute(Collections.singletonMap("pageSize", "50"), body,
+                contextWithOutputType(null))).id();
+
+        assertNotEquals(base, otherBody);
+        assertNotEquals(base, otherParams);
+    }
+
+    @Test
+    public void testPresentationParametersDoNotRotateSpreadsheetId() throws Exception {
+        // The spreadsheet stores its data under "spreadsheet-<macroId>.json", so resizing the
+        // widget must not orphan the saved attachment.
+        TableSpreadsheetMacro macro = new TableSpreadsheetMacro();
+        Map<String, String> small = new HashMap<>();
+        small.put("height", "300px");
+        Map<String, String> large = new HashMap<>();
+        large.put("height", "800px");
+        large.put("readOnly", "true");
+
+        String id1 = parseRoot(macro.execute(small, null, contextWithOutputType(null))).id();
+        String id2 = parseRoot(macro.execute(large, null, contextWithOutputType(null))).id();
+
+        assertEquals(id1, id2);
+    }
 }

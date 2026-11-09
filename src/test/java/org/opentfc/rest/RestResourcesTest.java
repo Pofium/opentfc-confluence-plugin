@@ -76,38 +76,45 @@ public class RestResourcesTest {
     }
 
     @Test
-    public void testTransformerRejectsMissingSql() {
-        TransformerRestResource.QueryRequest request = new TransformerRestResource.QueryRequest();
-        request.sql = null;
-        Response response = new TransformerRestResource().executeQuery(1L, "m", request);
+    public void testTransformerRejectsMalformedBody() {
+        Response response = new TransformerRestResource().executeQuery(1L, "m", "{oops");
         assertEquals(400, response.getStatus());
     }
 
     @Test
-    public void testTransformerExecutesSelect() {
+    public void testTransformerRejectsMissingSql() throws Exception {
+        TransformerRestResource.QueryRequest request = new TransformerRestResource.QueryRequest();
+        request.sql = null;
+        request.tables = new ArrayList<>();
+        Response response = new TransformerRestResource().executeQuery(1L, "m", OpenTfcJson.write(request));
+        assertEquals(400, response.getStatus());
+    }
+
+    @Test
+    public void testTransformerExecutesSelect() throws Exception {
         TransformerRestResource.QueryRequest request = new TransformerRestResource.QueryRequest();
         request.sql = "SELECT Name, CAST(Qty AS INTEGER) AS Qty FROM T1";
         request.tables = List.of(twoColumnTable());
 
-        Response response = new TransformerRestResource().executeQuery(1L, "m", request);
+        Response response = new TransformerRestResource().executeQuery(1L, "m", OpenTfcJson.write(request));
         assertEquals(200, response.getStatus());
 
-        SqlExecutionResult result = (SqlExecutionResult) response.getEntity();
+        SqlExecutionResult result = OpenTfcJson.read((String) response.getEntity(), SqlExecutionResult.class);
         assertTrue(result.isSuccess());
         assertEquals(1, result.getTable().getRows().size());
         assertEquals("Server", result.getTable().getRows().get(0).getCells().get(0).getRawValue());
     }
 
     @Test
-    public void testTransformerReturnsErrorPayloadForDdl() {
+    public void testTransformerReturnsErrorPayloadForDdl() throws Exception {
         TransformerRestResource.QueryRequest request = new TransformerRestResource.QueryRequest();
         request.sql = "DROP TABLE T1";
         request.tables = new ArrayList<>();
 
-        Response response = new TransformerRestResource().executeQuery(1L, "m", request);
+        Response response = new TransformerRestResource().executeQuery(1L, "m", OpenTfcJson.write(request));
         assertEquals(200, response.getStatus());
 
-        SqlExecutionResult result = (SqlExecutionResult) response.getEntity();
+        SqlExecutionResult result = OpenTfcJson.read((String) response.getEntity(), SqlExecutionResult.class);
         assertFalse(result.isSuccess());
         assertTrue(result.getErrorMessage().contains("Security violation"));
     }
@@ -115,10 +122,11 @@ public class RestResourcesTest {
     // ---------- /export ----------
 
     @Test
-    public void testExportCsvResponse() {
-        Response response = new ExportRestResource().exportCsv(twoColumnTable());
+    public void testExportCsvResponse() throws Exception {
+        Response response = new ExportRestResource().exportCsv(null, OpenTfcJson.write(twoColumnTable()));
         assertEquals(200, response.getStatus());
-        assertEquals("attachment; filename=\"export.csv\"", String.valueOf(response.getMetadata().getFirst("Content-Disposition")));
+        String disposition = String.valueOf(response.getMetadata().getFirst("Content-Disposition"));
+        assertTrue(disposition, disposition.startsWith("attachment; filename=\"export.csv\""));
 
         String body = new String((byte[]) response.getEntity(), StandardCharsets.UTF_8);
         assertTrue(body.contains("Name,Qty"));
@@ -126,19 +134,76 @@ public class RestResourcesTest {
     }
 
     @Test
-    public void testExportXlsxResponse() {
-        Response response = new ExportRestResource().exportXlsx(twoColumnTable());
+    public void testExportXlsxResponse() throws Exception {
+        Response response = new ExportRestResource().exportXlsx(null, OpenTfcJson.write(twoColumnTable()));
         assertEquals(200, response.getStatus());
-        assertEquals("attachment; filename=\"export.xlsx\"", String.valueOf(response.getMetadata().getFirst("Content-Disposition")));
+        String disposition = String.valueOf(response.getMetadata().getFirst("Content-Disposition"));
+        assertTrue(disposition, disposition.startsWith("attachment; filename=\"export.xlsx\""));
 
         byte[] body = (byte[]) response.getEntity();
         assertTrue("XLSX payload must be a zip container", body.length > 2 && body[0] == 'P' && body[1] == 'K');
     }
 
+    /**
+     * Regression for the failure that made "Export to Excel" download a CSV: the frontend sends
+     * its own column/cell objects, and the export had to survive fields it does not model as well
+     * as the legacy cell name produced by the platform Jackson.
+     */
+    @Test
+    public void testExportAcceptsFrontendPayloadWithExtraFields() {
+        String body = "{\"id\":\"m\",\"totalRows\":1,"
+                + "\"columns\":[{\"index\":0,\"name\":\"Name\",\"type\":\"TEXT\",\"visible\":true,\"currencySuffix\":\" ₽\"},"
+                + "{\"index\":1,\"name\":\"Qty\",\"type\":\"NUMBER\",\"visible\":true}],"
+                + "\"rows\":[{\"cells\":[{\"val\":\"Server\",\"html\":\"Server\",\"type\":\"TEXT\"},"
+                + "{\"val\":\"5\",\"html\":\"5\",\"type\":\"NUMBER\"}]}]}";
+
+        Response response = new ExportRestResource().exportXlsx("таблица-1.xlsx", body);
+        assertEquals(200, response.getStatus());
+        byte[] bytes = (byte[]) response.getEntity();
+        assertTrue("XLSX payload must be a zip container", bytes.length > 2 && bytes[0] == 'P' && bytes[1] == 'K');
+        String disposition = String.valueOf(response.getMetadata().getFirst("Content-Disposition"));
+        assertTrue(disposition, disposition.contains("filename*=UTF-8''"));
+    }
+
+    @Test
+    public void testExportAcceptsLegacyRawValueCellName() throws Exception {
+        String body = "{\"columns\":[{\"index\":0,\"name\":\"Name\",\"type\":\"TEXT\"}],"
+                + "\"rows\":[{\"cells\":[{\"rawValue\":\"Old\",\"html\":\"Old\",\"type\":\"TEXT\"}]}]}";
+        Response response = new ExportRestResource().exportCsv(null, body);
+        assertEquals(200, response.getStatus());
+        String csv = new String((byte[]) response.getEntity(), StandardCharsets.UTF_8);
+        assertTrue(csv, csv.contains("Old"));
+    }
+
+    @Test
+    public void testExportReportsBadBodyInsteadOfOpaqueError() {
+        Response response = new ExportRestResource().exportXlsx(null, "{not json");
+        assertEquals(400, response.getStatus());
+        assertTrue(String.valueOf(response.getEntity()),
+                String.valueOf(response.getEntity()).contains("Malformed table payload"));
+    }
+
+    @Test
+    public void testExportFileNameIsSanitized() throws Exception {
+        Response response = new ExportRestResource().exportCsv("a\"\r\nX-Injected: 1/b", OpenTfcJson.write(twoColumnTable()));
+        String disposition = String.valueOf(response.getMetadata().getFirst("Content-Disposition"));
+        // The header must stay a single line: quotes, CR, LF and path separators cannot escape it
+        assertFalse(disposition, disposition.contains("\r") || disposition.contains("\n"));
+        assertTrue(disposition, disposition.startsWith("attachment; filename=\"aX-Injected: 1b.csv\""));
+        assertFalse(disposition, disposition.contains("\"\""));
+    }
+
+    @Test
+    public void testExportAttachmentHeaderPercentEncodesUnicode() throws Exception {
+        Response response = new ExportRestResource().exportCsv("Отчёт", OpenTfcJson.write(twoColumnTable()));
+        String disposition = String.valueOf(response.getMetadata().getFirst("Content-Disposition"));
+        assertTrue(disposition, disposition.contains("filename*=UTF-8''" + ExportRestResource.percentEncode("Отчёт.csv")));
+    }
+
     // ---------- /source ----------
 
     @Test
-    public void testSourceLoadsCsvAttachment() {
+    public void testSourceLoadsCsvAttachment() throws Exception {
         PageManager pageManager = mock(PageManager.class);
         AttachmentManager attachmentManager = mock(AttachmentManager.class);
         Page page = mock(Page.class);
@@ -152,15 +217,38 @@ public class RestResourcesTest {
                 .getSourceData(42L, "macro-1", "csv", "data.csv", null, "UTF-8", ",");
 
         assertEquals(200, response.getStatus());
-        TableModel model = (TableModel) response.getEntity();
+        TableModel model = OpenTfcJson.read((String) response.getEntity(), TableModel.class);
         assertEquals("macro-1", model.getId());
         assertEquals(2, model.getColumns().size());
         assertEquals("A", model.getColumns().get(0).getName());
         assertEquals("1", model.getRows().get(0).getCells().get(0).getRawValue());
     }
 
+    /**
+     * The cell value must travel under the name the frontend reads. On a real server the platform
+     * Jackson serialized the getter name ("rawValue") instead of "val", so every loaded cell
+     * rendered as empty.
+     */
     @Test
-    public void testSourceLoadsJsonAttachment() {
+    public void testSourceSerializesCellsUnderTheFrontendName() throws Exception {
+        PageManager pageManager = mock(PageManager.class);
+        AttachmentManager attachmentManager = mock(AttachmentManager.class);
+        Page page = mock(Page.class);
+        Attachment attachment = mock(Attachment.class);
+
+        when(pageManager.getPage(42L)).thenReturn(page);
+        when(attachmentManager.getAttachment(page, "data.csv")).thenReturn(attachment);
+        when(attachmentManager.getAttachmentData(attachment)).thenReturn(csvStream("A,B\n1,2\n"));
+
+        String json = (String) new SourceRestResource(pageManager, attachmentManager)
+                .getSourceData(42L, "macro-1", "csv", "data.csv", null, "UTF-8", ",").getEntity();
+
+        assertTrue(json, json.contains("\"val\""));
+        assertFalse(json, json.contains("rawValue"));
+    }
+
+    @Test
+    public void testSourceLoadsJsonAttachment() throws Exception {
         PageManager pageManager = mock(PageManager.class);
         AttachmentManager attachmentManager = mock(AttachmentManager.class);
         Page page = mock(Page.class);
@@ -175,13 +263,13 @@ public class RestResourcesTest {
                 .getSourceData(7L, "macro-2", "json", "data.json", null, "UTF-8", ",");
 
         assertEquals(200, response.getStatus());
-        TableModel model = (TableModel) response.getEntity();
+        TableModel model = OpenTfcJson.read((String) response.getEntity(), TableModel.class);
         assertEquals(1, model.getColumns().size());
         assertEquals(2, model.getRows().size());
     }
 
     @Test
-    public void testSourceRespectsSemicolonDelimiterAndEncoding() {
+    public void testSourceRespectsSemicolonDelimiterAndEncoding() throws Exception {
         PageManager pageManager = mock(PageManager.class);
         AttachmentManager attachmentManager = mock(AttachmentManager.class);
         Page page = mock(Page.class);
@@ -195,7 +283,7 @@ public class RestResourcesTest {
         Response response = new SourceRestResource(pageManager, attachmentManager)
                 .getSourceData(1L, "m", "csv", "data.csv", null, "UTF-8", ";");
 
-        TableModel model = (TableModel) response.getEntity();
+        TableModel model = OpenTfcJson.read((String) response.getEntity(), TableModel.class);
         assertEquals("A", model.getColumns().get(0).getName());
         assertEquals("B", model.getColumns().get(1).getName());
     }

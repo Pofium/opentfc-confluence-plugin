@@ -22,10 +22,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.inject.Named;
+
 /**
  * Attachment Table macro: renders the current page's attachments as a table
  * (can be wrapped by Table Filter for filtering/sorting).
  */
+@Named
 public class AttachmentTableMacro extends BaseOpenTfcMacro {
 
     private static final DateTimeFormatter DATE_FORMATTER =
@@ -68,7 +71,7 @@ public class AttachmentTableMacro extends BaseOpenTfcMacro {
     @Override
     public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-        String macroId = getOrCreateMacroId(parameters);
+        String macroId = getOrCreateMacroId(parameters, "opentfc-attachment-table", body, ctx, "height");
         Set<String> include = parseExtensions(parameters.get("includeExtensions"));
         Set<String> exclude = parseExtensions(parameters.get("excludeExtensions"));
         String contextPath = applicationProperties != null ? applicationProperties.getBaseUrl(UrlMode.RELATIVE) : "";

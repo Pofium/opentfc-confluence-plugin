@@ -63,6 +63,14 @@
   box-shadow: 0 0 0 1px var(--ds-border-focused, #4c9aff);
 }
 
+/* Value typed in a range filter that cannot be read as a number/date: the filter is NOT applied,
+   so the field has to say so instead of leaving the user with an unexplained full table. */
+.opentfc-input-invalid,
+.opentfc-input-invalid:focus {
+  border-color: #de350b;
+  box-shadow: 0 0 0 1px #de350b;
+}
+
 .opentfc-input-compact {
   padding: 4px 8px;
   font-size: 12px;
@@ -270,10 +278,12 @@
 .opentfc-multiselect-actions {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid #ebecf0;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .opentfc-multiselect-link {
@@ -333,16 +343,183 @@
   background: var(--ds-surface-sunken, #f4f5f7) !important;
 }
 
+/* ---------------------------------------------------------------------------
+   Host page interference. Wiki tables are often picked up by an external
+   table sorter (jQuery tablesorter and friends): it clones the header for its
+   own sticky row, wraps header text in its own buttons and marks the cells
+   unselectable. The clone is dead markup (its duplicated filter controls have
+   no listeners and it covers the real ones), and unselectable cells cannot
+   hold a working input, so all of it is neutralised here - the component
+   detaches the sorter itself in detachHostSorter().
+   --------------------------------------------------------------------------- */
+.opentfc-table-filter thead.tableFloatingHeader {
+  display: none !important;
+}
+
+.opentfc-table-filter th,
+.opentfc-table-filter td.opentfc-filter-cell {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The host's sort button must not look like a second button inside our header. */
+.opentfc-table-filter th button.headerButton,
+.opentfc-table-filter th .tablesorter-header-inner > button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
 .opentfc-table-wrapper th {
   padding: 8px 10px;
   font-weight: 600;
   text-align: left;
   border-bottom: 2px solid var(--ds-border, #dfe1e6);
-  border-right: 1px solid var(--ds-border, #ebecf0);
+  border-right: 1px solid var(--ds-border, #dfe1e6);
   background: var(--ds-surface-sunken, #f4f5f7);
   user-select: none;
   cursor: pointer;
   white-space: nowrap;
+  position: relative;
+  vertical-align: bottom;
+}
+
+/* Filter controls inside header cells */
+.opentfc-th-text {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.opentfc-th-filter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.opentfc-th-filter .opentfc-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.opentfc-th-filter .opentfc-input-num {
+  width: 50px;
+}
+
+.opentfc-th-filter .opentfc-input-date {
+  width: 100px;
+}
+
+.opentfc-th-filter .opentfc-input-txt {
+  width: 100%;
+}
+
+.opentfc-th-filter .opentfc-select-trigger {
+  font-size: 12px;
+  padding: 2px 4px;
+  max-width: 100%;
+}
+
+.opentfc-th-filter .opentfc-multiselect-panel {
+  top: calc(100% + 2px);
+  left: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Filter row
+   Filter controls used to live inside the title <th>. Together with
+   `th { white-space: nowrap }` and the sticky frozen column, the control of one
+   column was painted over the neighbour's input (literally unclickable) and the
+   inflated header produced a phantom horizontal scrollbar. Each control now owns
+   one cell of a dedicated header row, so it is always as wide as its column.
+   --------------------------------------------------------------------------- */
+.opentfc-table-wrapper tr.opentfc-filter-row {
+  border-collapse: separate;
+}
+
+.opentfc-table-wrapper td.opentfc-filter-cell {
+  padding: 4px 6px;
+  background: var(--ds-surface-sunken, #f4f5f7);
+  border-bottom: 2px solid var(--ds-border, #dfe1e6);
+  border-right: 1px solid var(--ds-border, #dfe1e6);
+  vertical-align: top;
+  white-space: normal;
+  font-weight: normal;
+  cursor: default;
+}
+
+.opentfc-sticky-header td.opentfc-filter-cell {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+}
+
+.opentfc-table-wrapper td.opentfc-filter-cell:hover {
+  background: var(--ds-surface-sunken, #f4f5f7);
+}
+
+td.opentfc-filter-cell.opentfc-frozen-cell {
+  z-index: 16 !important;
+  background: #f4f5f7 !important;
+}
+
+.opentfc-filter-cell .opentfc-th-filter {
+  margin-top: 0;
+}
+
+.opentfc-filter-cell .opentfc-input-num {
+  width: 100%;
+  min-width: 0;
+}
+
+.opentfc-filter-cell .opentfc-input {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+/* Page level column panel: the scrolling table wrapper would clip an absolutely
+   positioned child, so the open panel is rendered against the viewport. */
+.opentfc-multiselect-panel[data-opentfc-floating] {
+  position: fixed;
+  z-index: 1500;
+  margin: 0;
+  box-sizing: border-box;
+  /* the last column of a wide table sits at the right edge: never let the popover overflow it */
+  max-width: calc(100vw - 16px);
+  box-shadow: 0 3px 8px rgba(9, 30, 66, 0.25);
+}
+
+.opentfc-multiselect-panel .opentfc-multiselect-options {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* Component level notices (export result, errors) */
+.opentfc-notice {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ds-border, #dfe1e6);
+  border-left: 3px solid #0052cc;
+  border-radius: 3px;
+  background: #deebff;
+  color: #172b4d;
+  font-size: 13px;
+}
+
+.opentfc-notice-error {
+  border-left-color: #de350b;
+  background: #ffebe6;
+  color: #4a1c10;
 }
 
 .opentfc-table-wrapper th:hover {
@@ -374,7 +551,7 @@
 .opentfc-table-wrapper td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--ds-border, #dfe1e6);
-  border-right: 1px solid var(--ds-border, #f4f5f7);
+  border-right: 1px solid var(--ds-border, #dfe1e6);
   background: #ffffff;
 }
 
@@ -442,6 +619,41 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Filter state summary next to the row counter: an empty table without an explained
+   reason looks like a broken filter, and filters on hidden columns are invisible. */
+.opentfc-pagination-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.opentfc-filter-hint {
+  color: #6b778c;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.opentfc-filter-hint-warn {
+  color: #974c0c;
+}
+
+.opentfc-pg-reset {
+  font-size: 12px;
+  color: #0052cc;
+  text-decoration: none;
+}
+
+.opentfc-pg-reset:hover {
+  text-decoration: underline;
+}
+
+.opentfc-empty-hint {
+  width: 100%;
+  color: #6b778c;
+  font-size: 12px;
 }
 
 /* Modal Dialog */

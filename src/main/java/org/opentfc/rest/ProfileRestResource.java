@@ -11,6 +11,7 @@ import org.opentfc.model.FilterProfileModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.inject.Named;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -20,6 +21,7 @@ import java.util.List;
 /**
  * REST endpoint for saving, retrieving, and deleting user table filter profiles.
  */
+@Named
 @Path("/profile")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -57,18 +59,32 @@ public class ProfileRestResource {
         for (FilterProfile fp : profiles) {
             result.add(new FilterProfileModel(fp.getID(), fp.getPageId(), fp.getMacroId(), fp.getProfileName(), fp.getFilterStateJson()));
         }
-        return Response.ok(result).build();
+        try {
+            return Response.ok(OpenTfcJson.write(result), MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            log.error("Profile listing failed for page={}: {}", pageId, e.getMessage(), e);
+            return Response.serverError().entity("Could not serialize saved views").build();
+        }
     }
 
     @POST
     @Path("/{pageId}/{macroId}")
     public Response saveProfile(@PathParam("pageId") long pageId,
                                 @PathParam("macroId") String macroId,
-                                FilterProfileModel model) {
+                                String body) {
         ConfluenceUser user = AuthenticatedUserThreadLocal.get();
         if (user == null) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
+
+        FilterProfileModel model;
+        try {
+            model = OpenTfcJson.read(body, FilterProfileModel.class);
+        } catch (Exception e) {
+            log.warn("Malformed profile payload for page={}: {}", pageId, e.getMessage());
+            return Response.status(Response.Status.BAD_REQUEST).entity("Malformed JSON profile payload").build();
+        }
+
         String userKey = user.getKey().getStringValue();
 
         // Validate profile name
@@ -106,7 +122,13 @@ public class ProfileRestResource {
             profile.save();
         }
 
-        return Response.ok(new FilterProfileModel(profile.getID(), profile.getPageId(), profile.getMacroId(), profile.getProfileName(), profile.getFilterStateJson())).build();
+        try {
+            return Response.ok(OpenTfcJson.write(new FilterProfileModel(profile.getID(), profile.getPageId(), profile.getMacroId(), profile.getProfileName(), profile.getFilterStateJson())),
+                    MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            log.error("Profile serialization failed for page={}: {}", pageId, e.getMessage(), e);
+            return Response.serverError().entity("View saved but could not be serialized").build();
+        }
     }
 
     @DELETE

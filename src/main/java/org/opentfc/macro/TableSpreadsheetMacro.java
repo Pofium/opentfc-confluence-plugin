@@ -8,9 +8,12 @@ import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.inject.Named;
+
 /**
  * Table Spreadsheet macro: editable grid persisted as a JSON attachment on the page.
  */
+@Named
 public class TableSpreadsheetMacro extends BaseOpenTfcMacro {
 
     public TableSpreadsheetMacro() {
@@ -29,7 +32,9 @@ public class TableSpreadsheetMacro extends BaseOpenTfcMacro {
     @Override
     public String execute(Map<String, String> parameters, String body, ConversionContext ctx)
             throws MacroExecutionException {
-        String macroId = getOrCreateMacroId(parameters);
+        // height/readOnly are presentation-only: rotating the identifier when they change would
+        // orphan the saved spreadsheet attachment.
+        String macroId = getOrCreateMacroId(parameters, "opentfc-spreadsheet", body, ctx, "height", "readOnly");
         if (isExportMode(ctx)) {
             return "<div class=\"opentfc-export-spreadsheet\">[OpenTFC Spreadsheet " + escape(macroId) + "]</div>";
         }

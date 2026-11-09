@@ -1,17 +1,23 @@
 package org.opentfc.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 
 /**
  * Model representing an individual table cell with raw and formatted representation.
+ *
+ * The wire name of the value is "val" (that is what the frontend reads and sends).
+ * "rawValue"/"value" are accepted as aliases so that payloads produced by older
+ * builds — where the platform Jackson derived the name from getRawValue() — still import.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class CellModel implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @JsonProperty("val")
+    @JsonAlias({"rawValue", "value"})
     private Object rawValue;
 
     @JsonProperty("html")

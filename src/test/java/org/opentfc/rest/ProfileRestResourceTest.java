@@ -58,20 +58,33 @@ public class ProfileRestResourceTest {
         return fp;
     }
 
+    /**
+     * The resources serialize with {@link OpenTfcJson} and return JSON text, exactly as they do
+     * on a real server - so the tests read the same wire format back.
+     */
+    private static String jsonOf(Response response) {
+        assertEquals(String.class, response.getEntity().getClass());
+        return (String) response.getEntity();
+    }
+
+    private static FilterProfileModel profileBody(String name, String stateJson) throws Exception {
+        return OpenTfcJson.read("{\"name\":" + OpenTfcJson.write(name)
+                + ",\"stateJson\":" + OpenTfcJson.write(stateJson) + "}", FilterProfileModel.class);
+    }
+
     @Test
-    public void testGetProfilesRequiresNoAuthenticationButFiltersByAnonymous() {
+    public void testGetProfilesRequiresNoAuthenticationButFiltersByAnonymous() throws Exception {
         when(ao.find(eq(FilterProfile.class), any(Query.class))).thenReturn(new FilterProfile[0]);
 
         Response response = resource.getProfiles(1L, "macro");
 
         assertEquals(200, response.getStatus());
-        assertTrue(((List<?>) response.getEntity()).isEmpty());
+        assertTrue(OpenTfcJson.read(jsonOf(response), List.class).isEmpty());
         verify(ao).find(eq(FilterProfile.class), any(Query.class));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    public void testGetProfilesMapsEntitiesForCurrentUser() {
+    public void testGetProfilesMapsEntitiesForCurrentUser() throws Exception {
         loginAs("user-1");
         FilterProfile entity = profile(5, "user-1", "Mine");
         when(ao.find(eq(FilterProfile.class), any(Query.class)))
@@ -80,25 +93,24 @@ public class ProfileRestResourceTest {
         Response response = resource.getProfiles(1L, "macro");
 
         assertEquals(200, response.getStatus());
-        List<FilterProfileModel> models = (List<FilterProfileModel>) response.getEntity();
-        assertEquals(1, models.size());
-        assertEquals(5L, models.get(0).getId());
-        assertEquals("Mine", models.get(0).getName());
-        assertEquals("{\"q\":\"x\"}", models.get(0).getStateJson());
+        FilterProfileModel[] models = OpenTfcJson.read(jsonOf(response), FilterProfileModel[].class);
+        assertEquals(1, models.length);
+        assertEquals(5L, models[0].getId());
+        assertEquals("Mine", models[0].getName());
+        assertEquals("{\"q\":\"x\"}", models[0].getStateJson());
     }
 
     @Test
-    public void testSaveProfileCreatesNewEntity() {
+    public void testSaveProfileCreatesNewEntity() throws Exception {
         loginAs("user-1");
         when(ao.find(eq(FilterProfile.class), any(Query.class))).thenReturn(new FilterProfile[0]);
         FilterProfile created = profile(9, "user-1", "New");
         when(ao.create(FilterProfile.class)).thenReturn(created);
 
-        FilterProfileModel model = new FilterProfileModel(0L, 1L, "macro", "New", "{\"q\":\"y\"}");
-        Response response = resource.saveProfile(1L, "macro", model);
+        Response response = resource.saveProfile(1L, "macro", OpenTfcJson.write(profileBody("New", "{\"q\":\"y\"}")));
 
         assertEquals(200, response.getStatus());
-        FilterProfileModel saved = (FilterProfileModel) response.getEntity();
+        FilterProfileModel saved = OpenTfcJson.read(jsonOf(response), FilterProfileModel.class);
         assertEquals(9L, saved.getId());
         verify(created).setPageId(1L);
         verify(created).setMacroId("macro");
@@ -109,13 +121,34 @@ public class ProfileRestResourceTest {
     }
 
     @Test
-    public void testSaveProfileUpdatesExistingEntity() {
+    public void testSaveProfileAcceptsLegacyStateFieldName() throws Exception {
+        loginAs("user-1");
+        when(ao.find(eq(FilterProfile.class), any(Query.class))).thenReturn(new FilterProfile[0]);
+        FilterProfile created = profile(9, "user-1", "Legacy");
+        when(ao.create(FilterProfile.class)).thenReturn(created);
+
+        // Bodies produced by older plugin builds used "state" instead of "stateJson"
+        Response response = resource.saveProfile(1L, "macro",
+                "{\"name\":\"Legacy\",\"state\":\"{\\\"q\\\":\\\"old\\\"}\"}");
+
+        assertEquals(200, response.getStatus());
+        verify(created).setFilterStateJson("{\"q\":\"old\"}");
+    }
+
+    @Test
+    public void testSaveProfileRejectsMalformedBody() {
+        loginAs("user-1");
+        Response response = resource.saveProfile(1L, "macro", "{not json");
+        assertEquals(400, response.getStatus());
+    }
+
+    @Test
+    public void testSaveProfileUpdatesExistingEntity() throws Exception {
         loginAs("user-1");
         FilterProfile existing = profile(3, "user-1", "Existing");
         when(ao.find(eq(FilterProfile.class), any(Query.class))).thenReturn(new FilterProfile[]{existing});
 
-        FilterProfileModel model = new FilterProfileModel(3L, 1L, "macro", "Existing", "{\"q\":\"z\"}");
-        Response response = resource.saveProfile(1L, "macro", model);
+        Response response = resource.saveProfile(1L, "macro", OpenTfcJson.write(profileBody("Existing", "{\"q\":\"z\"}")));
 
         assertEquals(200, response.getStatus());
         verify(existing).setFilterStateJson("{\"q\":\"z\"}");
@@ -125,9 +158,9 @@ public class ProfileRestResourceTest {
     }
 
     @Test
-    public void testSaveProfileRejectsAnonymousUser() {
-        FilterProfileModel model = new FilterProfileModel(0L, 1L, "macro", "x", "{}");
-        Response response = resource.saveProfile(1L, "macro", model);
+    public void testSaveProfileRejectsAnonymousUser() throws Exception {
+        Response response = resource.saveProfile(1L, "macro",
+                OpenTfcJson.write(profileBody("x", "{}")));
 
         assertEquals(401, response.getStatus());
         verifyNoInteractions(ao);

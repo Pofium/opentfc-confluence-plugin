@@ -251,17 +251,7 @@ final class HostBridgeLite {
                 if (publisher == null) {
                     return "EventPublisher недоступен";
                 }
-                publisher.register(new Object() {
-                    @EventListener
-                    public void onEnabled(PluginEnabledEvent event) {
-                        LiteLogStore.info("plugin-framework", "ENABLED  " + key(event));
-                    }
-
-                    @EventListener
-                    public void onDisabled(PluginDisabledEvent event) {
-                        LiteLogStore.warn("plugin-framework", "DISABLED " + key(event));
-                    }
-                });
+                publisher.register(new PluginFrameworkListener());
                 eventsRegistered = true;
                 LiteLogStore.info("diag-lite", "Plugin framework event listener registered");
                 return "registered";
